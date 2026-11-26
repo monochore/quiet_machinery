@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>QUIET MACHINERY // TEMPLE OF SOUND</title>
+<title>QUIET MACHINERY // Daniel James Corker [2026] </title>
 <style>
   /* =========================================================================
-     01. QUIET MACHINERY // LOCKED ETCHED MINERAL TOKENS
+     01. DESIGN TOKENS & BASE RESET
      ========================================================================= */
   :root {
     --bg: #050605;
@@ -32,7 +32,7 @@
     border-radius: 0;
   }
 
-  html, body, #chassis, #temple-canvas, button, .spectre-card, .dpad-btn {
+  html, body, #chassis, #temple-canvas, button, a, .spectre-card, .dpad-btn {
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
@@ -139,7 +139,7 @@
     transition: 0.1s;
     white-space: nowrap;
   }
-  .qm-btn:hover:not(:disabled):not(.sealed) {
+  .qm-btn:hover:not(.disabled) {
     background: #151c18;
     border-color: var(--border-main);
     color: var(--vellum);
@@ -149,24 +149,22 @@
     color: #050605;
     border-color: var(--vellum);
   }
-  .qm-btn.live-link {
-    border-color: var(--c-green);
-    color: var(--c-green);
-  }
-  .qm-btn.live-link:hover {
-    background: var(--c-green);
-    color: #050605;
-  }
-  .qm-btn.sealed,
-  .qm-btn:disabled {
+  .qm-btn.nav-kamen:hover    { background: var(--c-amber);   border-color: var(--c-amber);   color: #050605; }
+  .qm-btn.nav-karst:hover    { background: var(--c-red);     border-color: var(--c-red);     color: #050605; }
+  .qm-btn.nav-mnemo:hover    { background: var(--c-cyan);    border-color: var(--c-cyan);    color: #050605; }
+  .qm-btn.nav-asper:hover    { background: var(--c-amber);   border-color: var(--c-amber);   color: #050605; }
+  .qm-btn.nav-stele          { border-color: var(--c-green); color: var(--c-green); }
+  .qm-btn.nav-stele:hover    { background: var(--c-green);   border-color: var(--c-green);   color: #050605; }
+
+  .qm-btn.disabled {
     background: #050605;
     border-color: #1e2621;
     color: #46544c;
-    cursor: not-allowed;
+    cursor: default;
   }
 
   /* =========================================================================
-     03. STAGE 01: CHOOSE YOUR SPECTRE OVERLAY
+     03. STAGE 01: SPECTRE SELECTION
      ========================================================================= */
   #spectre-select {
     display: flex;
@@ -254,7 +252,7 @@
   }
 
   /* =========================================================================
-     04. STAGE 02: TOP-DOWN TEMPLE VIEWPORT & FIELD LOG
+     04. STAGE 02: TOP-DOWN TEMPLE VIEWPORT & FIELD TERMINAL
      ========================================================================= */
   #temple-stage {
     display: grid;
@@ -298,7 +296,6 @@
     color: var(--text-dim);
   }
 
-  /* Right-Hand Field Terminal */
   .side-terminal {
     background: var(--well);
     border: 1px solid var(--border-inner);
@@ -384,7 +381,6 @@
     color: var(--text-main);
   }
 
-  /* Compact Touch / Click Directional Pad */
   .dpad-wrap {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -427,23 +423,23 @@
 <div id="chassis-wrap">
   <div id="chassis">
 
-    <!-- TOP RAIL: TITLE & DIRECT ACCESS ESCAPE HATCH -->
+    <!-- TOP RAIL: SUITE INDEX (OPENS IN NEW TAB) -->
     <div class="top-rail">
       <div>
         <span class="brand-title">QUIET MACHINERY</span>
-        <span class="brand-sub">// TEMPLE OF SOUND · V1</span>
+        <span class="brand-sub">// TEMPLE OF SOUND</span>
       </div>
       <div class="quick-nav">
-        <button type="button" class="qm-btn sealed" title="Placeholder // Not Yet Linked">I. KAMEN</button>
-        <button type="button" class="qm-btn sealed" title="Placeholder // Not Yet Linked">II. KARST</button>
-        <button type="button" class="qm-btn sealed" title="Placeholder // Not Yet Linked">III. MNEMOSYNE</button>
-        <button type="button" class="qm-btn sealed" title="Placeholder // Not Yet Linked">IV. ASPERITAS</button>
-        <a class="qm-btn live-link" id="top-viz-link" href="./visualiser.html" title="Enter the Visualiser Directly">V. VISUALISER</a>
+        <a class="qm-btn nav-kamen" href="./kamen.html" target="_blank" rel="noopener noreferrer" title="Open KAMEN in New Tab">I. KAMEN ↗</a>
+        <a class="qm-btn nav-karst" href="./karst.html" target="_blank" rel="noopener noreferrer" title="Open KARST in New Tab">II. KARST ↗</a>
+        <a class="qm-btn nav-mnemo" href="./mnemosyne.html" target="_blank" rel="noopener noreferrer" title="Open MNEMOSYNE in New Tab">III. MNEMOSYNE ↗</a>
+        <a class="qm-btn nav-asper" href="./asperitas.html" target="_blank" rel="noopener noreferrer" title="Open ASPERITAS in New Tab">IV. ASPERITAS ↗</a>
+        <a class="qm-btn nav-stele" href="./stele.html" target="_blank" rel="noopener noreferrer" title="Open STELE in New Tab">V. STELE ↗</a>
         <button type="button" class="qm-btn" id="btn-reselect" title="Return to Spectre Selection [R]">[R] SPECTRE</button>
       </div>
     </div>
 
-    <!-- STAGE 01: CHOOSE YOUR SPECTRE -->
+    <!-- STAGE 01: SPECTRE SELECTION -->
     <div id="spectre-select">
       <div class="ritual-heading">
         <h1>· CHOOSE YOUR SPECTRE ·</h1>
@@ -452,19 +448,17 @@
       <div class="spectre-grid" id="spectre-grid"></div>
     </div>
 
-    <!-- STAGE 02: TOP-DOWN TEMPLE OF SOUND -->
+    <!-- STAGE 02: TOP-DOWN TEMPLE VIEWPORT -->
     <div id="temple-stage" class="hidden">
 
-      <!-- LEFT: TOP-DOWN ASCII CARTOGRAPHY -->
       <div class="map-well">
         <canvas id="temple-canvas" width="660" height="392"></canvas>
         <div class="map-footer">
-          <span>[WASD / ARROWS] WALK · [CLICK TILE] STEP · [E / ENTER] AWAKEN</span>
-          <span id="coord-readout">POS: 24, 11</span>
+          <span>[WASD / ARROWS] WALK · [CLICK] STEP / ENTER SHRINE · [E] NEW TAB</span>
+          <span id="coord-readout">POS: 24, 10</span>
         </div>
       </div>
 
-      <!-- RIGHT: FIELD TERMINAL & CONTROLS -->
       <div class="side-terminal">
         <div class="term-section">
           <div class="term-header">VESSEL</div>
@@ -479,8 +473,8 @@
           <div id="chamber-card">
             <div id="chamber-title">THE CENTRAL NAVE</div>
             <div id="chamber-sub">STRATUM 0 // LIMESTONE THRESHOLD</div>
-            <p id="chamber-desc">Salt-damp flagstones echo beneath your feet. Five conduits radiate into the dark. Approach a shrine to read its carvings.</p>
-            <button type="button" class="qm-btn sealed" id="btn-enter-chamber" disabled>APPROACH A SHRINE</button>
+            <p id="chamber-desc">Salt-damp flagstones echo beneath your feet. Five conduits radiate into the dark. Approach a shrine to inspect its carvings.</p>
+            <a class="qm-btn disabled" id="btn-enter-chamber" href="#" target="_blank" rel="noopener noreferrer" aria-disabled="true">APPROACH A SHRINE</a>
           </div>
         </div>
 
@@ -512,7 +506,7 @@
   'use strict';
 
   /* ===========================================================================
-     01. EDITABLE CONFIGURATION: SPECTRES & CHAMBER LINKS
+     01. SPECTRES & CHAMBER ROUTING
      =========================================================================== */
   const SPECTRES = [
     {
@@ -565,65 +559,64 @@
     }
   ];
 
-  // Flip enabled: true and update href when each instrument is ready to link
   const CHAMBERS = {
-    'V': {
-      name: 'THE OBSERVATORY // VISUALISER',
-      sub: 'CHAMBER V // OPTICAL SCRYING LENS',
+    'S': {
+      shortName: 'STELE',
+      name: 'V. STELE // THE OBSERVATORY',
+      sub: 'NORTH VAULT // VISUAL ENGINE',
       color: '#4e8f60',
       glyph: '◎',
-      enabled: true,
-      href: './visualiser.html',
-      desc: 'A dark obsidian mortar suspended above the central vault. Acoustic tremors cast here solidify into fractured ASCII architecture and archival plates.'
+      href: './stele.html',
+      desc: 'A dark obsidian mortar suspended above the nave. Acoustic tremors cast here solidify into fractured ASCII architecture and archival plates.'
     },
     'K': {
+      shortName: 'KAMEN',
       name: 'I. KAMEN // VOTIVE ALTAR',
       sub: 'WEST NAVE // LITHIC LITURGY ENGINE',
       color: '#a67a3c',
       glyph: '╬',
-      enabled: false,
       href: './kamen.html',
-      desc: 'Four basalt choir pillars stand in cold wax. The central Kigal sub-column hums faintly, waiting for its liturgical conduit to be unsealed.'
+      desc: 'Four basalt choir pillars stand in warm wax. The central Kigal sub-column hums at 30 Hz, waiting to be drawn into harmonic gravity.'
     },
     'R': {
+      shortName: 'KARST',
       name: 'II. KARST // THE FAULTLINE',
       sub: 'EAST NAVE // TECTONIC RHYTHM ENGINE',
       color: '#c45858',
       glyph: '▲',
-      enabled: false,
       href: './karst.html',
-      desc: 'A jagged limestone fissure where four percussive plates grind out of phase. Sealed for now beneath compacted shale and iron pins.'
+      desc: 'A jagged limestone fissure where four percussive plates grind out of phase. Divided clocks slip and fracture across the cavern floor.'
     },
     'M': {
+      shortName: 'MNEMOSYNE',
       name: 'III. MNEMOSYNE // RELIQUARY',
       sub: 'SOUTH-WEST CRYPT // SHATTER ENGINE',
       color: '#487e9e',
       glyph: '≡',
-      enabled: false,
       href: './mnemosyne.html',
-      desc: 'Shelves of silica-dusted memory buffers line the crypt. Nothing entered here returns whole. Conduit currently sealed.'
+      desc: 'Shelves of silica-dusted memory buffers line the crypt. Nothing entered here returns whole; every phrase is sliced and eroded in sequence.'
     },
     'A': {
+      shortName: 'ASPERITAS',
       name: 'IV. ASPERITAS // WINDWARD CRAG',
       sub: 'SOUTH-EAST BREACH // WEATHERING ENGINE',
       color: '#a67a3c',
       glyph: '≈',
-      enabled: false,
       href: './asperitas.html',
-      desc: 'Cold sea wind pours through a split arch. Two translucent amber vessels wait to catch strings, breath, and decay. Conduit currently sealed.'
+      desc: 'Cold sea wind pours through a split arch. Two translucent amber vessels catch strings, breath, and decay in suspended clouds.'
     }
   };
 
   /* ===========================================================================
-     02. EDITABLE TOP-DOWN ASCII TEMPLE FLOORPLAN (49 x 21)
-         # = Stone Wall   + = Pillar   * = Flickering Brazier
+     02. TOP-DOWN TEMPLE FLOORPLAN (49 x 21)
+         # = Stone Wall   + = Pillar   * = Brazier
          . = Flagstone    , = Rubble   ~ = Seeping Water
-         V/K/R/M/A = Interactive Shrines   @ = Spawn Point
+         S/K/R/M/A = Shrines           @ = Spawn Point
      =========================================================================== */
   const TEMPLE_MAP = [
     '#################################################',
     '#################...............#################',
-    '#################..+....V....+..#################',
+    '#################..+....S....+..#################',
     '#################..*.........*..#################',
     '###...........###......,........###...........###',
     '###..+.....+..#####....+....#####..+.....+....###',
@@ -655,6 +648,7 @@
     px: 24,
     py: 10,
     nearbyChamberKey: null,
+    pendingCanvasActivate: false,
     explored: Array.from({ length: MAP_ROWS }, () => new Uint8Array(MAP_COLS)),
     logs: []
   };
@@ -671,12 +665,10 @@
     chamberSub: document.getElementById('chamber-sub'),
     chamberDesc: document.getElementById('chamber-desc'),
     btnEnterChamber: document.getElementById('btn-enter-chamber'),
-    logFeed: document.getElementById('log-feed'),
-    topVizLink: document.getElementById('top-viz-link')
+    logFeed: document.getElementById('log-feed')
   };
 
   const ctx = dom.canvas.getContext('2d', { alpha: false });
-  dom.topVizLink.href = CHAMBERS['V'].href;
 
   function findSpawnPoint() {
     for (let r = 0; r < MAP_ROWS; r++) {
@@ -699,7 +691,7 @@
   }
 
   /* ===========================================================================
-     04. SPECTRE SELECTION RITUAL
+     04. SPECTRE SELECTION
      =========================================================================== */
   function buildSpectreCards() {
     dom.spectreGrid.innerHTML = '';
@@ -736,7 +728,7 @@
     revealAroundPlayer();
     inspectNearbyShrine();
     pushLog(`${spectre.name} ENTERS THE NAVE.`);
-    pushLog('NORTH CONDUIT LEADS TO THE OBSERVATORY.');
+    pushLog('FIVE CONDUITS HUM IN THE DARK.');
   }
 
   function returnToSpectreSelect() {
@@ -789,26 +781,26 @@
       dom.chamberSub.textContent = ch.sub;
       dom.chamberDesc.textContent = ch.desc;
 
-      if (ch.enabled) {
-        dom.btnEnterChamber.disabled = false;
-        dom.btnEnterChamber.className = 'qm-btn live-link';
-        dom.btnEnterChamber.textContent = '[E] AWAKEN VISUALISER';
-      } else {
-        dom.btnEnterChamber.disabled = true;
-        dom.btnEnterChamber.className = 'qm-btn sealed';
-        dom.btnEnterChamber.textContent = 'CONDUIT SEALED // PLACEHOLDER';
-      }
+      dom.btnEnterChamber.href = ch.href;
+      dom.btnEnterChamber.classList.remove('disabled');
+      dom.btnEnterChamber.removeAttribute('aria-disabled');
+      dom.btnEnterChamber.style.borderColor = ch.color;
+      dom.btnEnterChamber.style.color = ch.color;
+      dom.btnEnterChamber.textContent = `[E] AWAKEN ${ch.shortName} ↗`;
 
       if (prevKey !== foundKey) {
-        pushLog(`APPROACHED ${ch.name.split('//')[0].trim()}.`);
+        pushLog(`APPROACHED ${ch.shortName}.`);
       }
     } else {
       dom.chamberTitle.textContent = 'THE CENTRAL NAVE';
       dom.chamberTitle.style.color = 'var(--vellum)';
       dom.chamberSub.textContent = 'STRATUM 0 // LIMESTONE THRESHOLD';
       dom.chamberDesc.textContent = 'Salt-damp flagstones echo beneath your feet. Five conduits radiate into the dark. Approach a shrine to inspect its carvings.';
-      dom.btnEnterChamber.disabled = true;
-      dom.btnEnterChamber.className = 'qm-btn sealed';
+      dom.btnEnterChamber.href = '#';
+      dom.btnEnterChamber.classList.add('disabled');
+      dom.btnEnterChamber.setAttribute('aria-disabled', 'true');
+      dom.btnEnterChamber.style.borderColor = '';
+      dom.btnEnterChamber.style.color = '';
       dom.btnEnterChamber.textContent = 'APPROACH A SHRINE';
     }
   }
@@ -832,16 +824,12 @@
     if (!state.nearbyChamberKey) return;
     const ch = CHAMBERS[state.nearbyChamberKey];
     if (!ch) return;
-    if (ch.enabled) {
-      pushLog(`OPENING ${ch.href}...`);
-      window.location.href = ch.href;
-    } else {
-      pushLog(`${ch.name.split('//')[0].trim()} IS SEALED IN V1.`);
-    }
+    pushLog(`AWAKENING ${ch.shortName} IN NEW TAB.`);
+    window.open(ch.href, '_blank', 'noopener,noreferrer');
   }
 
   /* ===========================================================================
-     06. CANVAS RENDERER (FOG OF WAR + AMBIENT BRAZIER FLICKER)
+     06. CANVAS RENDERER
      =========================================================================== */
   function resizeCanvas() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -894,9 +882,7 @@
           const ch = CHAMBERS[raw];
           glyph = ch.glyph;
           if (inSight) {
-            color = ch.enabled
-              ? ((Math.sin(t * 1.8) > 0.2) ? '#e6e3da' : ch.color)
-              : ch.color;
+            color = (Math.sin(t * 1.8 + c) > 0.35) ? '#e6e3da' : ch.color;
           } else {
             color = '#3a4a41';
           }
@@ -917,7 +903,6 @@
           glyph = '∶';
           color = inSight ? '#6e8277' : '#19211d';
         } else {
-          // Floor flagstones ('.' or '@')
           glyph = '·';
           color = inSight ? (inPenumbra && dist > 6.0 ? '#1b241f' : '#2d3b33') : '#101613';
         }
@@ -950,19 +935,29 @@
       }
     });
 
-    // Click or tap on the map steps 1 tile toward the tapped coordinate
     dom.canvas.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
       const rect = dom.canvas.getBoundingClientRect();
       const targetC = Math.floor(((e.clientX - rect.left) / Math.max(1, rect.width)) * MAP_COLS);
       const targetR = Math.floor(((e.clientY - rect.top) / Math.max(1, rect.height)) * MAP_ROWS);
 
-      const dx = Math.sign(targetC - state.px);
-      const dy = Math.sign(targetR - state.py);
-      if (dx === 0 && dy === 0) {
-        activateCurrentChamber();
+      if (targetR < 0 || targetR >= MAP_ROWS || targetC < 0 || targetC >= MAP_COLS) return;
+
+      const clickedTile = TEMPLE_MAP[targetR][targetC];
+      const clickedNearbyShrine = state.nearbyChamberKey && (
+        clickedTile === state.nearbyChamberKey ||
+        (targetC === state.px && targetR === state.py)
+      );
+
+      if (clickedNearbyShrine) {
+        state.pendingCanvasActivate = true;
         return;
       }
+
+      state.pendingCanvasActivate = false;
+      const dx = Math.sign(targetC - state.px);
+      const dy = Math.sign(targetR - state.py);
+      if (dx === 0 && dy === 0) return;
+
       if (Math.abs(targetC - state.px) >= Math.abs(targetR - state.py)) {
         if (!isWalkable(state.px + dx, state.py) && dy !== 0) tryMove(0, dy);
         else tryMove(dx, 0);
@@ -972,7 +967,22 @@
       }
     });
 
-    // Touch D-Pad controls
+    dom.canvas.addEventListener('click', () => {
+      if (state.pendingCanvasActivate) {
+        state.pendingCanvasActivate = false;
+        activateCurrentChamber();
+      }
+    });
+
+    dom.btnEnterChamber.addEventListener('click', (e) => {
+      if (!state.nearbyChamberKey) {
+        e.preventDefault();
+        return;
+      }
+      const ch = CHAMBERS[state.nearbyChamberKey];
+      if (ch) pushLog(`AWAKENING ${ch.shortName} IN NEW TAB.`);
+    });
+
     document.querySelectorAll('.dpad-btn[data-dx]').forEach((btn) => {
       btn.addEventListener('pointerdown', (e) => {
         e.preventDefault();
@@ -981,7 +991,6 @@
     });
 
     document.getElementById('btn-dpad-act').addEventListener('click', activateCurrentChamber);
-    dom.btnEnterChamber.addEventListener('click', activateCurrentChamber);
     document.getElementById('btn-reselect').addEventListener('click', returnToSpectreSelect);
     window.addEventListener('resize', resizeCanvas);
   }
