@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>QUIET MACHINERY // TEMPLE OF SOUND</title>
+<style>
+  /* =========================================================================
+     01. QUIET MACHINERY // LOCKED ETCHED MINERAL TOKENS
+     ========================================================================= */
+  :root {
+    --bg: #050605;
+    --panel: rgba(9, 11, 10, 0.96);
+    --well: #040504;
+    --border-main: #5d786a;
+    --border-inner: #27342d;
+    --col-div: rgba(93, 120, 106, 0.28);
+
+    --c-green: #4e8f60;
+    --c-amber: #a67a3c;
+    --c-cyan: #487e9e;
+    --c-red: #c45858;
+    --c-red-dim: #9e4b4b;
+    --vellum: #e6e3da;
+    --text-main: #c7d1cc;
+    --text-dim: #6e8277;
+    --mono: 'Courier New', Menlo, Monaco, Consolas, monospace;
+  }
+
+  * {
+    box-sizing: border-box;
+    border-radius: 0;
+  }
+
+  html, body, #chassis, #temple-canvas, button, .spectre-card, .dpad-btn {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--bg);
+    color: var(--text-main);
+    font-family: var(--mono);
+    touch-action: manipulation;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* =========================================================================
+     02. CHASSIS FRAME & QUICK-INDEX HEADER
+     ========================================================================= */
+  #chassis-wrap {
+    width: 100%;
+    max-width: 980px;
+    padding: 10px;
+    display: flex;
+    justify-content: center;
+  }
+
+  #chassis {
+    position: relative;
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border-main);
+    outline: 1px solid var(--border-inner);
+    outline-offset: -5px;
+    padding: 10px;
+    box-shadow: inset 0 0 44px rgba(0, 0, 0, 0.94), 0 16px 48px rgba(0, 0, 0, 0.92);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  #chassis::before,
+  #chassis::after {
+    position: absolute;
+    font-size: 10px;
+    line-height: 1;
+    color: var(--border-main);
+    pointer-events: none;
+  }
+  #chassis::before { content: '◈'; top: 2px; left: 3px; }
+  #chassis::after  { content: '◈'; top: 2px; right: 3px; }
+
+  .top-rail {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 6px 6px 6px;
+    border-bottom: 1px solid var(--col-div);
+    flex-wrap: wrap;
+  }
+
+  .brand-title {
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 2.2px;
+    color: var(--vellum);
+  }
+  .brand-sub {
+    font-size: 8.5px;
+    letter-spacing: 1.2px;
+    color: var(--text-dim);
+    margin-left: 8px;
+  }
+
+  .quick-nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .qm-btn {
+    background: #080a09;
+    border: 1px solid #35453c;
+    color: var(--text-main);
+    font-family: var(--mono);
+    font-size: 8.5px;
+    font-weight: bold;
+    letter-spacing: 0.6px;
+    padding: 4px 7px;
+    cursor: pointer;
+    text-transform: uppercase;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: 0.1s;
+    white-space: nowrap;
+  }
+  .qm-btn:hover:not(:disabled):not(.sealed) {
+    background: #151c18;
+    border-color: var(--border-main);
+    color: var(--vellum);
+  }
+  .qm-btn.active {
+    background: var(--vellum);
+    color: #050605;
+    border-color: var(--vellum);
+  }
+  .qm-btn.live-link {
+    border-color: var(--c-green);
+    color: var(--c-green);
+  }
+  .qm-btn.live-link:hover {
+    background: var(--c-green);
+    color: #050605;
+  }
+  .qm-btn.sealed,
+  .qm-btn:disabled {
+    background: #050605;
+    border-color: #1e2621;
+    color: #46544c;
+    cursor: not-allowed;
+  }
+
+  /* =========================================================================
+     03. STAGE 01: CHOOSE YOUR SPECTRE OVERLAY
+     ========================================================================= */
+  #spectre-select {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 12px 24px 12px;
+    gap: 16px;
+    min-height: 430px;
+    background: var(--well);
+    border: 1px solid var(--border-inner);
+  }
+  #spectre-select.hidden {
+    display: none;
+  }
+
+  .ritual-heading {
+    text-align: center;
+  }
+  .ritual-heading h1 {
+    margin: 0;
+    font-size: 14px;
+    letter-spacing: 3.5px;
+    color: var(--vellum);
+    font-weight: bold;
+  }
+  .ritual-heading p {
+    margin: 6px 0 0 0;
+    font-size: 9.5px;
+    letter-spacing: 1.4px;
+    color: var(--text-dim);
+  }
+
+  .spectre-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    width: 100%;
+    max-width: 780px;
+  }
+
+  .spectre-card {
+    background: #070908;
+    border: 1px solid var(--border-inner);
+    padding: 14px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: border-color 0.12s, background-color 0.12s;
+  }
+  .spectre-card:hover {
+    background: #0e1310;
+    border-color: var(--border-main);
+  }
+
+  .spectre-art {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 12px;
+    white-space: pre;
+    padding: 6px 0;
+  }
+
+  .spectre-name {
+    font-size: 10.5px;
+    font-weight: bold;
+    letter-spacing: 1.8px;
+    color: var(--vellum);
+  }
+  .spectre-sigil {
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+  }
+  .spectre-lore {
+    font-size: 9px;
+    line-height: 1.45;
+    color: var(--text-main);
+    margin: 0;
+    min-height: 40px;
+  }
+
+  /* =========================================================================
+     04. STAGE 02: TOP-DOWN TEMPLE VIEWPORT & FIELD LOG
+     ========================================================================= */
+  #temple-stage {
+    display: grid;
+    grid-template-columns: 1fr 272px;
+    gap: 8px;
+    min-height: 430px;
+  }
+  #temple-stage.hidden {
+    display: none;
+  }
+
+  .map-well {
+    background: var(--well);
+    border: 1px solid var(--border-inner);
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-width: 0;
+  }
+
+  #temple-canvas {
+    width: 100%;
+    height: 392px;
+    display: block;
+    background: #030403;
+    cursor: crosshair;
+    image-rendering: pixelated;
+    touch-action: none;
+  }
+
+  .map-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 5px;
+    margin-top: 4px;
+    border-top: 1px solid var(--border-inner);
+    font-size: 8px;
+    letter-spacing: 0.8px;
+    color: var(--text-dim);
+  }
+
+  /* Right-Hand Field Terminal */
+  .side-terminal {
+    background: var(--well);
+    border: 1px solid var(--border-inner);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .term-section {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .term-header {
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 1.6px;
+    color: var(--text-dim);
+    padding-bottom: 3px;
+    border-bottom: 1px solid var(--border-inner);
+  }
+  .term-header::before { content: '· '; color: var(--border-main); }
+  .term-header::after  { content: ' ·'; color: var(--border-main); }
+
+  .spectre-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 9px;
+    padding: 4px 6px;
+    background: #070908;
+    border: 1px solid var(--border-inner);
+  }
+
+  #chamber-card {
+    background: #070908;
+    border: 1px solid var(--border-inner);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 158px;
+  }
+
+  #chamber-title {
+    font-size: 10.5px;
+    font-weight: bold;
+    letter-spacing: 1.6px;
+    color: var(--vellum);
+  }
+  #chamber-sub {
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: var(--c-amber);
+  }
+  #chamber-desc {
+    font-size: 9px;
+    line-height: 1.48;
+    color: var(--text-main);
+    margin: 0;
+    flex: 1;
+  }
+
+  #log-feed {
+    background: #030403;
+    border: 1px solid var(--border-inner);
+    padding: 5px 6px;
+    height: 76px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 3px;
+    font-size: 8px;
+    line-height: 1.3;
+    color: var(--text-dim);
+  }
+  .log-line:last-child {
+    color: var(--text-main);
+  }
+
+  /* Compact Touch / Click Directional Pad */
+  .dpad-wrap {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3px;
+  }
+  .dpad-btn {
+    background: #080a09;
+    border: 1px solid #35453c;
+    color: var(--text-main);
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: bold;
+    height: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .dpad-btn:hover {
+    background: #151c18;
+    border-color: var(--border-main);
+    color: var(--vellum);
+  }
+  .dpad-spacer {
+    visibility: hidden;
+  }
+
+  /* =========================================================================
+     05. RESPONSIVE BREAKPOINTS
+     ========================================================================= */
+  @media (max-width: 820px) {
+    .spectre-grid { grid-template-columns: 1fr; }
+    #temple-stage { grid-template-columns: 1fr; }
+    #temple-canvas { height: 280px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="chassis-wrap">
+  <div id="chassis">
+
+    <!-- TOP RAIL: TITLE & DIRECT ACCESS ESCAPE HATCH -->
+    <div class="top-rail">
+      <div>
+        <span class="brand-title">QUIET MACHINERY</span>
+        <span class="brand-sub">// TEMPLE OF SOUND · V1</span>
+      </div>
+      <div class="quick-nav">
+        <button type="button" class="qm-btn sealed" title="Placeholder // Not Yet Linked">I. KAMEN</button>
+        <button type="button" class="qm-btn sealed" title="Placeholder // Not Yet Linked">II. KARST</button>
+        <button type="button" class="qm-btn sealed" title="Placeholder // Not Yet Linked">III. MNEMOSYNE</button>
+        <button type="button" class="qm-btn sealed" title="Placeholder // Not Yet Linked">IV. ASPERITAS</button>
+        <a class="qm-btn live-link" id="top-viz-link" href="./visualiser.html" title="Enter the Visualiser Directly">V. VISUALISER</a>
+        <button type="button" class="qm-btn" id="btn-reselect" title="Return to Spectre Selection [R]">[R] SPECTRE</button>
+      </div>
+    </div>
+
+    <!-- STAGE 01: CHOOSE YOUR SPECTRE -->
+    <div id="spectre-select">
+      <div class="ritual-heading">
+        <h1>· CHOOSE YOUR SPECTRE ·</h1>
+        <p>SIT WITH THE UNCOMFORTABILITY // SELECT A VESSEL TO WALK THE RUIN</p>
+      </div>
+      <div class="spectre-grid" id="spectre-grid"></div>
+    </div>
+
+    <!-- STAGE 02: TOP-DOWN TEMPLE OF SOUND -->
+    <div id="temple-stage" class="hidden">
+
+      <!-- LEFT: TOP-DOWN ASCII CARTOGRAPHY -->
+      <div class="map-well">
+        <canvas id="temple-canvas" width="660" height="392"></canvas>
+        <div class="map-footer">
+          <span>[WASD / ARROWS] WALK · [CLICK TILE] STEP · [E / ENTER] AWAKEN</span>
+          <span id="coord-readout">POS: 24, 11</span>
+        </div>
+      </div>
+
+      <!-- RIGHT: FIELD TERMINAL & CONTROLS -->
+      <div class="side-terminal">
+        <div class="term-section">
+          <div class="term-header">VESSEL</div>
+          <div class="spectre-status">
+            <span id="hud-spectre-name" style="font-weight:bold;">THE EIDOLON</span>
+            <span id="hud-spectre-glyph" style="font-weight:bold;">†</span>
+          </div>
+        </div>
+
+        <div class="term-section">
+          <div class="term-header">INSPECTION</div>
+          <div id="chamber-card">
+            <div id="chamber-title">THE CENTRAL NAVE</div>
+            <div id="chamber-sub">STRATUM 0 // LIMESTONE THRESHOLD</div>
+            <p id="chamber-desc">Salt-damp flagstones echo beneath your feet. Five conduits radiate into the dark. Approach a shrine to read its carvings.</p>
+            <button type="button" class="qm-btn sealed" id="btn-enter-chamber" disabled>APPROACH A SHRINE</button>
+          </div>
+        </div>
+
+        <div class="term-section">
+          <div class="term-header">FIELD LOG</div>
+          <div id="log-feed"></div>
+        </div>
+
+        <div class="dpad-wrap" aria-label="Touch Navigation">
+          <div class="dpad-spacer"></div>
+          <button type="button" class="dpad-btn" data-dx="0" data-dy="-1">▲</button>
+          <div class="dpad-spacer"></div>
+          <button type="button" class="dpad-btn" data-dx="-1" data-dy="0">◄</button>
+          <button type="button" class="dpad-btn" id="btn-dpad-act">◈</button>
+          <button type="button" class="dpad-btn" data-dx="1" data-dy="0">►</button>
+          <div class="dpad-spacer"></div>
+          <button type="button" class="dpad-btn" data-dx="0" data-dy="1">▼</button>
+          <div class="dpad-spacer"></div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ===========================================================================
+     01. EDITABLE CONFIGURATION: SPECTRES & CHAMBER LINKS
+     =========================================================================== */
+  const SPECTRES = [
+    {
+      id: 'eidolon',
+      name: 'THE EIDOLON',
+      glyph: '†',
+      color: '#4e8f60',
+      subtitle: 'STRATUM RESIDUE',
+      lore: 'Spliced from wet limestone and forgotten tape loops. Leaves damp footprints where nothing walks.',
+      art: [
+        '   · ┼ ·   ',
+        '  ┌──†──┐  ',
+        '  │ ⊙ ⊙ │  ',
+        '  └┬───┬┘  ',
+        '   │ ▓ │   ',
+        '  ╵│ ▒ │╵  '
+      ].join('\n')
+    },
+    {
+      id: 'cantor',
+      name: 'THE CANTOR',
+      glyph: '◈',
+      color: '#a67a3c',
+      subtitle: 'HOLLOW BELL-KEEPER',
+      lore: 'Wears tarnished bronze bells under salt-stiff linen. Carries a low 40 Hz tremor behind the ribs.',
+      art: [
+        '    .◈.    ',
+        '   /───\\   ',
+        '  │ ╵ ╵ │  ',
+        '  ╠══╬══╣  ',
+        '  │ ▒▓▒ │  ',
+        '  ╵  │  ╵  '
+      ].join('\n')
+    },
+    {
+      id: 'wraith',
+      name: 'THE SILT-WRAITH',
+      glyph: '❖',
+      color: '#487e9e',
+      subtitle: 'WINDWARD RELIC',
+      lore: 'Spun from weathered amber and coastal draughts. Speaks only in reversed decay and fractured air.',
+      art: [
+        '  · ∶ ❖ ∶  ',
+        '   ╱───╲   ',
+        '  ‹ · · ›  ',
+        '   ╲═╬═╱   ',
+        '   ∶ ▒ ∶   ',
+        '  ·  ╵  ·  '
+      ].join('\n')
+    }
+  ];
+
+  // Flip enabled: true and update href when each instrument is ready to link
+  const CHAMBERS = {
+    'V': {
+      name: 'THE OBSERVATORY // VISUALISER',
+      sub: 'CHAMBER V // OPTICAL SCRYING LENS',
+      color: '#4e8f60',
+      glyph: '◎',
+      enabled: true,
+      href: './visualiser.html',
+      desc: 'A dark obsidian mortar suspended above the central vault. Acoustic tremors cast here solidify into fractured ASCII architecture and archival plates.'
+    },
+    'K': {
+      name: 'I. KAMEN // VOTIVE ALTAR',
+      sub: 'WEST NAVE // LITHIC LITURGY ENGINE',
+      color: '#a67a3c',
+      glyph: '╬',
+      enabled: false,
+      href: './kamen.html',
+      desc: 'Four basalt choir pillars stand in cold wax. The central Kigal sub-column hums faintly, waiting for its liturgical conduit to be unsealed.'
+    },
+    'R': {
+      name: 'II. KARST // THE FAULTLINE',
+      sub: 'EAST NAVE // TECTONIC RHYTHM ENGINE',
+      color: '#c45858',
+      glyph: '▲',
+      enabled: false,
+      href: './karst.html',
+      desc: 'A jagged limestone fissure where four percussive plates grind out of phase. Sealed for now beneath compacted shale and iron pins.'
+    },
+    'M': {
+      name: 'III. MNEMOSYNE // RELIQUARY',
+      sub: 'SOUTH-WEST CRYPT // SHATTER ENGINE',
+      color: '#487e9e',
+      glyph: '≡',
+      enabled: false,
+      href: './mnemosyne.html',
+      desc: 'Shelves of silica-dusted memory buffers line the crypt. Nothing entered here returns whole. Conduit currently sealed.'
+    },
+    'A': {
+      name: 'IV. ASPERITAS // WINDWARD CRAG',
+      sub: 'SOUTH-EAST BREACH // WEATHERING ENGINE',
+      color: '#a67a3c',
+      glyph: '≈',
+      enabled: false,
+      href: './asperitas.html',
+      desc: 'Cold sea wind pours through a split arch. Two translucent amber vessels wait to catch strings, breath, and decay. Conduit currently sealed.'
+    }
+  };
+
+  /* ===========================================================================
+     02. EDITABLE TOP-DOWN ASCII TEMPLE FLOORPLAN (49 x 21)
+         # = Stone Wall   + = Pillar   * = Flickering Brazier
+         . = Flagstone    , = Rubble   ~ = Seeping Water
+         V/K/R/M/A = Interactive Shrines   @ = Spawn Point
+     =========================================================================== */
+  const TEMPLE_MAP = [
+    '#################################################',
+    '#################...............#################',
+    '#################..+....V....+..#################',
+    '#################..*.........*..#################',
+    '###...........###......,........###...........###',
+    '###..+.....+..#####....+....#####..+.....+....###',
+    '###.....K.........+.........+.........R.......###',
+    '###..*.....*..###.............###..*.....*....###',
+    '###...........###...~.....~...###...........~.###',
+    '#########.#######.............#######.###########',
+    '#########.#######......@......#######.###########',
+    '#########.#######.............#######.###########',
+    '###...........###...~.....~...###...........~.###',
+    '###..*.....*..###.............###..*.....*....###',
+    '###.....M.........+.........+.........A.......###',
+    '###..+.....+..#####.........#####..+.....+....###',
+    '###...........###......,........###...........###',
+    '#################..*.........*..#################',
+    '#################..+....~....+..#################',
+    '#################...............#################',
+    '#################################################'
+  ];
+
+  const MAP_ROWS = TEMPLE_MAP.length;
+  const MAP_COLS = TEMPLE_MAP[0].length;
+
+  /* ===========================================================================
+     03. APPLICATION STATE & DOM REFERENCES
+     =========================================================================== */
+  const state = {
+    spectre: null,
+    px: 24,
+    py: 10,
+    nearbyChamberKey: null,
+    explored: Array.from({ length: MAP_ROWS }, () => new Uint8Array(MAP_COLS)),
+    logs: []
+  };
+
+  const dom = {
+    spectreSelect: document.getElementById('spectre-select'),
+    spectreGrid: document.getElementById('spectre-grid'),
+    templeStage: document.getElementById('temple-stage'),
+    canvas: document.getElementById('temple-canvas'),
+    coordReadout: document.getElementById('coord-readout'),
+    hudName: document.getElementById('hud-spectre-name'),
+    hudGlyph: document.getElementById('hud-spectre-glyph'),
+    chamberTitle: document.getElementById('chamber-title'),
+    chamberSub: document.getElementById('chamber-sub'),
+    chamberDesc: document.getElementById('chamber-desc'),
+    btnEnterChamber: document.getElementById('btn-enter-chamber'),
+    logFeed: document.getElementById('log-feed'),
+    topVizLink: document.getElementById('top-viz-link')
+  };
+
+  const ctx = dom.canvas.getContext('2d', { alpha: false });
+  dom.topVizLink.href = CHAMBERS['V'].href;
+
+  function findSpawnPoint() {
+    for (let r = 0; r < MAP_ROWS; r++) {
+      for (let c = 0; c < MAP_COLS; c++) {
+        if (TEMPLE_MAP[r][c] === '@') {
+          state.px = c;
+          state.py = r;
+          return;
+        }
+      }
+    }
+  }
+
+  function pushLog(text) {
+    state.logs.push(`> ${text}`);
+    if (state.logs.length > 5) state.logs.shift();
+    dom.logFeed.innerHTML = state.logs
+      .map((line) => `<div class="log-line">${line}</div>`)
+      .join('');
+  }
+
+  /* ===========================================================================
+     04. SPECTRE SELECTION RITUAL
+     =========================================================================== */
+  function buildSpectreCards() {
+    dom.spectreGrid.innerHTML = '';
+    SPECTRES.forEach((sp) => {
+      const card = document.createElement('div');
+      card.className = 'spectre-card';
+      card.innerHTML = `
+        <pre class="spectre-art" style="color:${sp.color};">${sp.art}</pre>
+        <div class="spectre-name">${sp.name}</div>
+        <div class="spectre-sigil">[ ${sp.glyph} // ${sp.subtitle} ]</div>
+        <p class="spectre-lore">${sp.lore}</p>
+        <button type="button" class="qm-btn" style="width:100%; border-color:${sp.color}; color:${sp.color};">INHABIT VESSEL</button>
+      `;
+      card.addEventListener('click', () => enterTempleAs(sp));
+      dom.spectreGrid.appendChild(card);
+    });
+  }
+
+  function enterTempleAs(spectre) {
+    state.spectre = spectre;
+    findSpawnPoint();
+    state.explored.forEach((row) => row.fill(0));
+    state.logs = [];
+
+    dom.hudName.textContent = spectre.name;
+    dom.hudName.style.color = spectre.color;
+    dom.hudGlyph.textContent = spectre.glyph;
+    dom.hudGlyph.style.color = spectre.color;
+
+    dom.spectreSelect.classList.add('hidden');
+    dom.templeStage.classList.remove('hidden');
+
+    resizeCanvas();
+    revealAroundPlayer();
+    inspectNearbyShrine();
+    pushLog(`${spectre.name} ENTERS THE NAVE.`);
+    pushLog('NORTH CONDUIT LEADS TO THE OBSERVATORY.');
+  }
+
+  function returnToSpectreSelect() {
+    dom.templeStage.classList.add('hidden');
+    dom.spectreSelect.classList.remove('hidden');
+  }
+
+  /* ===========================================================================
+     05. MOVEMENT, FOG-OF-WAR & SHRINE INSPECTION
+     =========================================================================== */
+  function isWalkable(c, r) {
+    if (r < 0 || r >= MAP_ROWS || c < 0 || c >= MAP_COLS) return false;
+    const ch = TEMPLE_MAP[r][c];
+    return ch !== '#' && ch !== '+' && ch !== '*';
+  }
+
+  function revealAroundPlayer() {
+    const rad = 8.5;
+    for (let r = 0; r < MAP_ROWS; r++) {
+      for (let c = 0; c < MAP_COLS; c++) {
+        const d = Math.hypot(c - state.px, (r - state.py) * 1.35);
+        if (d <= rad) state.explored[r][c] = 1;
+      }
+    }
+  }
+
+  function inspectNearbyShrine() {
+    let foundKey = null;
+    const offsets = [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]];
+    for (let i = 0; i < offsets.length; i++) {
+      const nc = state.px + offsets[i][0];
+      const nr = state.py + offsets[i][1];
+      if (nr >= 0 && nr < MAP_ROWS && nc >= 0 && nc < MAP_COLS) {
+        const ch = TEMPLE_MAP[nr][nc];
+        if (CHAMBERS[ch]) {
+          foundKey = ch;
+          break;
+        }
+      }
+    }
+
+    const prevKey = state.nearbyChamberKey;
+    state.nearbyChamberKey = foundKey;
+    dom.coordReadout.textContent = `POS: ${String(state.px).padStart(2, '0')}, ${String(state.py).padStart(2, '0')}`;
+
+    if (foundKey) {
+      const ch = CHAMBERS[foundKey];
+      dom.chamberTitle.textContent = ch.name;
+      dom.chamberTitle.style.color = ch.color;
+      dom.chamberSub.textContent = ch.sub;
+      dom.chamberDesc.textContent = ch.desc;
+
+      if (ch.enabled) {
+        dom.btnEnterChamber.disabled = false;
+        dom.btnEnterChamber.className = 'qm-btn live-link';
+        dom.btnEnterChamber.textContent = '[E] AWAKEN VISUALISER';
+      } else {
+        dom.btnEnterChamber.disabled = true;
+        dom.btnEnterChamber.className = 'qm-btn sealed';
+        dom.btnEnterChamber.textContent = 'CONDUIT SEALED // PLACEHOLDER';
+      }
+
+      if (prevKey !== foundKey) {
+        pushLog(`APPROACHED ${ch.name.split('//')[0].trim()}.`);
+      }
+    } else {
+      dom.chamberTitle.textContent = 'THE CENTRAL NAVE';
+      dom.chamberTitle.style.color = 'var(--vellum)';
+      dom.chamberSub.textContent = 'STRATUM 0 // LIMESTONE THRESHOLD';
+      dom.chamberDesc.textContent = 'Salt-damp flagstones echo beneath your feet. Five conduits radiate into the dark. Approach a shrine to inspect its carvings.';
+      dom.btnEnterChamber.disabled = true;
+      dom.btnEnterChamber.className = 'qm-btn sealed';
+      dom.btnEnterChamber.textContent = 'APPROACH A SHRINE';
+    }
+  }
+
+  function tryMove(dx, dy) {
+    if (!state.spectre || dom.templeStage.classList.contains('hidden')) return;
+    const nx = state.px + dx;
+    const ny = state.py + dy;
+    if (isWalkable(nx, ny)) {
+      state.px = nx;
+      state.py = ny;
+      revealAroundPlayer();
+      inspectNearbyShrine();
+    } else if (ny >= 0 && ny < MAP_ROWS && nx >= 0 && nx < MAP_COLS) {
+      const bump = TEMPLE_MAP[ny][nx];
+      if (bump === '*') pushLog('WARM ASH AND TALLOW.');
+    }
+  }
+
+  function activateCurrentChamber() {
+    if (!state.nearbyChamberKey) return;
+    const ch = CHAMBERS[state.nearbyChamberKey];
+    if (!ch) return;
+    if (ch.enabled) {
+      pushLog(`OPENING ${ch.href}...`);
+      window.location.href = ch.href;
+    } else {
+      pushLog(`${ch.name.split('//')[0].trim()} IS SEALED IN V1.`);
+    }
+  }
+
+  /* ===========================================================================
+     06. CANVAS RENDERER (FOG OF WAR + AMBIENT BRAZIER FLICKER)
+     =========================================================================== */
+  function resizeCanvas() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = dom.canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      dom.canvas.width = Math.floor(rect.width * dpr);
+      dom.canvas.height = Math.floor(rect.height * dpr);
+    }
+  }
+
+  function renderTemple(nowMs) {
+    requestAnimationFrame(renderTemple);
+    if (!state.spectre || dom.templeStage.classList.contains('hidden')) return;
+
+    const w = dom.canvas.width;
+    const h = dom.canvas.height;
+    ctx.fillStyle = '#030403';
+    ctx.fillRect(0, 0, w, h);
+
+    const cellW = w / MAP_COLS;
+    const cellH = h / MAP_ROWS;
+    const fontPx = Math.max(9, Math.floor(Math.min(cellW * 1.15, cellH * 0.88)));
+
+    ctx.font = `bold ${fontPx}px 'Courier New', Menlo, monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const t = nowMs * 0.004;
+
+    for (let r = 0; r < MAP_ROWS; r++) {
+      const py = r * cellH + cellH * 0.52;
+      for (let c = 0; c < MAP_COLS; c++) {
+        const dist = Math.hypot(c - state.px, (r - state.py) * 1.35);
+        const inSight = dist <= 8.5;
+        const inPenumbra = dist <= 11.0;
+
+        if (!inSight && !state.explored[r][c]) continue;
+
+        const px = c * cellW + cellW * 0.5;
+        const raw = TEMPLE_MAP[r][c];
+        let glyph = raw;
+        let color = '#243029';
+
+        if (c === state.px && r === state.py) {
+          glyph = state.spectre.glyph;
+          color = state.spectre.color;
+          ctx.fillStyle = 'rgba(230, 227, 218, 0.08)';
+          ctx.fillRect(c * cellW, r * cellH, cellW, cellH);
+        } else if (CHAMBERS[raw]) {
+          const ch = CHAMBERS[raw];
+          glyph = ch.glyph;
+          if (inSight) {
+            color = ch.enabled
+              ? ((Math.sin(t * 1.8) > 0.2) ? '#e6e3da' : ch.color)
+              : ch.color;
+          } else {
+            color = '#3a4a41';
+          }
+        } else if (raw === '#') {
+          glyph = ((c + r) % 3 === 0) ? '▓' : '▒';
+          color = inSight ? (dist < 4.5 ? '#5d786a' : '#3a4d43') : '#161e1a';
+        } else if (raw === '+') {
+          glyph = '╬';
+          color = inSight ? '#859c8f' : '#212c26';
+        } else if (raw === '*') {
+          const flick = Math.sin(t * 2.5 + c * 1.7 + r) > 0;
+          glyph = flick ? '✦' : '·';
+          color = inSight ? (flick ? '#a67a3c' : '#c45858') : '#292218';
+        } else if (raw === '~') {
+          glyph = (Math.sin(t + c * 0.8) > 0) ? '~' : '≈';
+          color = inSight ? '#487e9e' : '#18262e';
+        } else if (raw === ',') {
+          glyph = '∶';
+          color = inSight ? '#6e8277' : '#19211d';
+        } else {
+          // Floor flagstones ('.' or '@')
+          glyph = '·';
+          color = inSight ? (inPenumbra && dist > 6.0 ? '#1b241f' : '#2d3b33') : '#101613';
+        }
+
+        ctx.fillStyle = color;
+        ctx.fillText(glyph, px, py);
+      }
+    }
+  }
+
+  /* ===========================================================================
+     07. INPUT LISTENERS & BOOTSTRAP
+     =========================================================================== */
+  function wireEvents() {
+    window.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      if (k === 'r') {
+        returnToSpectreSelect();
+        return;
+      }
+      if (dom.templeStage.classList.contains('hidden')) return;
+
+      if (k === 'w' || e.key === 'ArrowUp') { e.preventDefault(); tryMove(0, -1); }
+      else if (k === 's' || e.key === 'ArrowDown') { e.preventDefault(); tryMove(0, 1); }
+      else if (k === 'a' || e.key === 'ArrowLeft') { e.preventDefault(); tryMove(-1, 0); }
+      else if (k === 'd' || e.key === 'ArrowRight') { e.preventDefault(); tryMove(1, 0); }
+      else if (k === 'e' || e.key === 'Enter' || e.code === 'Space') {
+        e.preventDefault();
+        activateCurrentChamber();
+      }
+    });
+
+    // Click or tap on the map steps 1 tile toward the tapped coordinate
+    dom.canvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const rect = dom.canvas.getBoundingClientRect();
+      const targetC = Math.floor(((e.clientX - rect.left) / Math.max(1, rect.width)) * MAP_COLS);
+      const targetR = Math.floor(((e.clientY - rect.top) / Math.max(1, rect.height)) * MAP_ROWS);
+
+      const dx = Math.sign(targetC - state.px);
+      const dy = Math.sign(targetR - state.py);
+      if (dx === 0 && dy === 0) {
+        activateCurrentChamber();
+        return;
+      }
+      if (Math.abs(targetC - state.px) >= Math.abs(targetR - state.py)) {
+        if (!isWalkable(state.px + dx, state.py) && dy !== 0) tryMove(0, dy);
+        else tryMove(dx, 0);
+      } else {
+        if (!isWalkable(state.px, state.py + dy) && dx !== 0) tryMove(dx, 0);
+        else tryMove(0, dy);
+      }
+    });
+
+    // Touch D-Pad controls
+    document.querySelectorAll('.dpad-btn[data-dx]').forEach((btn) => {
+      btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        tryMove(parseInt(btn.dataset.dx, 10), parseInt(btn.dataset.dy, 10));
+      });
+    });
+
+    document.getElementById('btn-dpad-act').addEventListener('click', activateCurrentChamber);
+    dom.btnEnterChamber.addEventListener('click', activateCurrentChamber);
+    document.getElementById('btn-reselect').addEventListener('click', returnToSpectreSelect);
+    window.addEventListener('resize', resizeCanvas);
+  }
+
+  window.onload = () => {
+    buildSpectreCards();
+    wireEvents();
+    requestAnimationFrame(renderTemple);
+  };
+})();
+</script>
+</body>
+</html>
