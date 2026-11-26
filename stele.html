@@ -1,0 +1,5051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>QUIET MACHINERY // VISUALISER</title>
+<style>
+  /* =========================================================================
+     01. COLOR TOKENS & BASE RESET
+     ========================================================================= */
+  :root {
+    --bg: #050605;
+    --panel: rgba(9, 11, 10, 0.94);
+    --well: #040504;
+    --border-main: #5d786a;
+    --border-inner: #27342d;
+    --col-div: rgba(93, 120, 106, 0.28);
+
+    --c-green: #4e8f60;
+    --c-amber: #a67a3c;
+    --c-cyan: #487e9e;
+    --c-red: #9e4b4b;
+    --c-sage: #6a8778;
+    --c-slate: #62788c;
+    --vellum: #e6e3da;
+    --text-main: #c7d1cc;
+    --text-dim: #6e8277;
+    --mono: 'Courier New', Menlo, Monaco, Consolas, monospace;
+  }
+
+  * {
+    box-sizing: border-box;
+    border-radius: 0;
+  }
+
+  html, body, #visualiser-canvas, #chassis, .column, .oled-container,
+  .knob-container, #atelier-shelf, button, .glyph-tile, .ascii-scrub, .mic-cycler {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--bg);
+    color: var(--text-main);
+    font-family: var(--mono);
+    touch-action: manipulation;
+  }
+
+  /* =========================================================================
+     02. STAGE VIEWPORT & OVERLAYS
+     ========================================================================= */
+  #stage-viewport {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #030403;
+    z-index: 1;
+  }
+
+  #visualiser-canvas {
+    display: block;
+    background-color: #060606;
+    transition: box-shadow 0.2s ease;
+  }
+  #visualiser-canvas.framed {
+    border: 1px solid var(--border-main);
+    outline: 1px solid var(--border-inner);
+    outline-offset: -4px;
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.95);
+  }
+
+  #corner-toggle {
+    position: fixed;
+    top: 12px;
+    right: 14px;
+    z-index: 40;
+    background: var(--panel);
+    border: 1px solid var(--border-main);
+    outline: 1px solid var(--border-inner);
+    outline-offset: -3px;
+    color: var(--text-main);
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1.8px;
+    padding: 4px 10px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: background 0.12s, color 0.12s, border-color 0.12s, opacity 0.2s;
+  }
+  #corner-toggle:hover {
+    background: var(--vellum);
+    color: #050605;
+    border-color: var(--vellum);
+  }
+  #corner-toggle.stealth {
+    opacity: 0.30;
+  }
+  #corner-toggle.stealth:hover {
+    opacity: 1;
+  }
+
+  #qm-toast {
+    position: fixed;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    pointer-events: none;
+    background: rgba(6, 8, 7, 0.96);
+    border: 1px solid var(--border-main);
+    outline: 1px solid var(--border-inner);
+    outline-offset: -4px;
+    padding: 5px 15px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: bold;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--vellum);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    white-space: nowrap;
+    max-width: 90vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #qm-toast.visible {
+    opacity: 1;
+  }
+
+  #drop-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(4, 5, 4, 0.92);
+    pointer-events: none;
+  }
+  #drop-overlay.active {
+    display: flex;
+  }
+  .drop-plaque {
+    background: var(--panel);
+    border: 1px solid var(--border-main);
+    outline: 1px solid var(--border-inner);
+    outline-offset: -6px;
+    padding: 26px 44px;
+    text-align: center;
+    box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.92), 0 20px 60px rgba(0, 0, 0, 0.9);
+  }
+  .drop-title {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: bold;
+    letter-spacing: 4px;
+    color: var(--vellum);
+    text-transform: uppercase;
+  }
+  .drop-sub {
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 1.8px;
+    color: var(--c-green);
+    text-transform: uppercase;
+  }
+
+  /* =========================================================================
+     03. CONTROL CHASSIS LAYOUT
+     ========================================================================= */
+  #chassis-dock {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 10px;
+    z-index: 30;
+    display: flex;
+    justify-content: center;
+    padding: 0 10px;
+    pointer-events: none;
+    transition: transform 0.18s ease, opacity 0.18s ease;
+  }
+  #chassis-dock.hidden {
+    opacity: 0;
+    transform: translateY(24px);
+    pointer-events: none !important;
+    visibility: hidden;
+  }
+
+  #chassis {
+    position: relative;
+    pointer-events: auto;
+    width: 100%;
+    max-width: 1260px;
+    background: var(--panel);
+    border: 1px solid var(--border-main);
+    outline: 1px solid var(--border-inner);
+    outline-offset: -5px;
+    padding: 10px 8px 9px 8px;
+    box-shadow: inset 0 0 44px rgba(0, 0, 0, 0.94), 0 16px 48px rgba(0, 0, 0, 0.92);
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 54px);
+    overflow-y: auto;
+  }
+
+  #chassis::before,
+  #chassis::after {
+    position: absolute;
+    font-family: var(--mono);
+    font-size: 10px;
+    line-height: 1;
+    color: var(--border-main);
+    pointer-events: none;
+  }
+  #chassis::before {
+    content: '◈';
+    top: 2px;
+    left: 3px;
+  }
+  #chassis::after {
+    content: '◈';
+    top: 2px;
+    right: 3px;
+  }
+
+  .upper-deck {
+    display: grid;
+    grid-template-columns: 26px 1fr 26px;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .vertical-text {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    text-align: center;
+    font-size: 9.5px;
+    font-weight: bold;
+    letter-spacing: 3.5px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .panel-core {
+    display: grid;
+    grid-template-columns: 192px minmax(222px, 1.04fr) minmax(312px, 1.32fr) minmax(242px, 1.08fr);
+    border-left: 1px solid var(--col-div);
+    border-right: 1px solid var(--col-div);
+    min-width: 0;
+  }
+
+  .column {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 3px 9px 5px 9px;
+    border-right: 1px solid var(--col-div);
+    min-width: 0;
+  }
+  .column:last-child {
+    border-right: none;
+  }
+
+  .col-header {
+    font-size: 9.5px;
+    font-weight: bold;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    text-align: center;
+    margin-bottom: 6px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid var(--border-inner);
+    line-height: 1.1;
+  }
+  .col-header::before { content: '· '; color: var(--border-main); }
+  .col-header::after  { content: ' ·'; color: var(--border-main); }
+
+  /* =========================================================================
+     04. SYSTEM & OLED MODULE
+     ========================================================================= */
+  .oled-container {
+    width: 100%;
+    background: var(--well);
+    border: 1px solid var(--border-inner);
+    padding: 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.85);
+  }
+
+  .scope-strip {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+    width: 100%;
+  }
+
+  #scope {
+    flex: 1;
+    min-width: 0;
+    height: 36px;
+    background: #030403;
+    border: 1px solid var(--border-inner);
+    cursor: pointer;
+    display: block;
+    image-rendering: pixelated;
+  }
+
+  #btn-viz-scope {
+    flex: 0 0 34px;
+    background: #070908;
+    border: 1px solid var(--border-inner);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 8.5px;
+    font-weight: bold;
+    letter-spacing: 0.8px;
+    padding: 0 2px;
+    cursor: pointer;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: 0.1s;
+  }
+  #btn-viz-scope:hover {
+    background: #161d19;
+    color: var(--vellum);
+    border-color: var(--border-main);
+  }
+  #btn-viz-scope.active {
+    background: var(--c-green);
+    color: #050605;
+    border-color: var(--c-green);
+  }
+
+  .oled-row {
+    display: flex;
+    width: 100%;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .oled-btn {
+    flex: 1;
+    background: #080a09;
+    border: 1px solid #35453c;
+    color: var(--text-main);
+    font-family: var(--mono);
+    font-size: 8.5px;
+    font-weight: bold;
+    letter-spacing: 0.6px;
+    padding: 3.5px 2px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: 0.1s;
+    text-align: center;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .oled-btn:hover:not(:disabled) {
+    background: #151c18;
+    border-color: var(--border-main);
+    color: var(--vellum);
+  }
+  .oled-btn.active {
+    background: var(--vellum);
+    color: #050605;
+    border-color: var(--vellum);
+  }
+  .oled-btn.active-amber {
+    background: var(--c-amber);
+    color: #050605;
+    border-color: var(--c-amber);
+  }
+  .oled-btn.active-green {
+    background: var(--c-green);
+    color: #050605;
+    border-color: var(--c-green);
+  }
+  .oled-btn.active-cyan {
+    background: var(--c-cyan);
+    color: #050605;
+    border-color: var(--c-cyan);
+  }
+  .oled-btn:disabled,
+  .oled-btn.locked-iso {
+    background: #050605;
+    border-color: #1f2823;
+    color: #46544c;
+    cursor: not-allowed;
+  }
+  .oled-btn.freeze {
+    flex: 1.35;
+    background: #080b0a;
+    border-color: var(--c-cyan);
+    color: var(--c-cyan);
+    font-size: 9px;
+    padding: 4px 0;
+    letter-spacing: 1.2px;
+  }
+  .oled-btn.freeze:hover {
+    background: rgba(72, 126, 158, 0.18);
+  }
+  .oled-btn.freeze.active {
+    background: var(--c-cyan);
+    color: #050605;
+  }
+  .oled-btn.cast {
+    flex: 1;
+    background: #0b0907;
+    border-color: var(--c-amber);
+    color: var(--c-amber);
+    font-size: 9px;
+    padding: 4px 0;
+    letter-spacing: 1px;
+  }
+  .oled-btn.cast:hover {
+    background: var(--c-amber);
+    color: #050605;
+  }
+
+  /* =========================================================================
+     05. INGEST & TRANSPORT MODULE
+     ========================================================================= */
+  .ingest-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex: 1;
+    justify-content: space-between;
+  }
+
+  .mic-cycler {
+    display: grid;
+    grid-template-columns: 18px 1fr 18px;
+    align-items: stretch;
+    width: 100%;
+    background: var(--well);
+    border: 1px solid #35453c;
+    height: 22px;
+  }
+  .mic-step-btn {
+    background: #080a09;
+    border: none;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 9.5px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: 0.1s;
+  }
+  .mic-step-btn:first-child {
+    border-right: 1px solid var(--border-inner);
+  }
+  .mic-step-btn:last-child {
+    border-left: 1px solid var(--border-inner);
+  }
+  .mic-step-btn:hover {
+    background: #151c18;
+    color: var(--vellum);
+  }
+  #mic-device-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 5px;
+    font-family: var(--mono);
+    font-size: 8.5px;
+    font-weight: bold;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+  }
+  #mic-device-label:hover {
+    color: var(--vellum);
+  }
+
+  #file-name-display {
+    width: 100%;
+    background: var(--well);
+    border: 1px solid var(--border-inner);
+    color: var(--vellum);
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: bold;
+    padding: 4px 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.3px;
+  }
+  #file-name-display.empty {
+    color: var(--text-dim);
+    font-weight: normal;
+  }
+
+  .transport-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+  }
+
+  #btn-play-pause {
+    flex: 0 0 auto;
+    width: 28px;
+    padding: 3px 0;
+    font-size: 9px;
+  }
+
+  .ascii-scrub {
+    flex: 1;
+    min-width: 64px;
+    height: 18px;
+    background: var(--well);
+    border: 1px solid #35453c;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.5px;
+    color: var(--vellum);
+    cursor: ew-resize;
+    overflow: hidden;
+  }
+  .ascii-scrub.disabled {
+    color: #3d4d44;
+    border-color: #1f2823;
+    cursor: default;
+  }
+
+  #file-timecode {
+    font-family: var(--mono);
+    font-size: 8.5px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* =========================================================================
+     06. DOMAIN DIALS MODULE
+     ========================================================================= */
+  .dials-row {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 2px;
+    align-items: center;
+    justify-items: center;
+    margin: auto 0;
+  }
+
+  .knob-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+  }
+  .knob-label {
+    font-size: 7.5px;
+    font-weight: bold;
+    margin-bottom: 3px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .knob-svg {
+    width: 38px;
+    height: 38px;
+    cursor: ns-resize;
+    overflow: visible;
+    filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.75));
+    touch-action: none;
+  }
+  .knob-ticks {
+    stroke: #36453d;
+    stroke-width: 1.2px;
+  }
+  .knob-bezel {
+    fill: #090c0a;
+    stroke-width: 1.8px;
+  }
+  .knob-cap {
+    fill: #111513;
+    stroke: #28332d;
+    stroke-width: 1px;
+  }
+  .knob-indicator {
+    stroke: var(--vellum);
+    stroke-width: 2px;
+    stroke-linecap: butt;
+  }
+  .knob-readout {
+    margin-top: 2px;
+    font-family: var(--mono);
+    font-size: 8px;
+    color: var(--text-dim);
+  }
+  .knob-container:hover .knob-readout,
+  .knob-container.dragging .knob-readout {
+    color: var(--vellum);
+  }
+
+  .d-green .knob-bezel { stroke: var(--c-green); }
+  .d-green .knob-label { color: var(--c-green); }
+  .d-amber .knob-bezel { stroke: var(--c-amber); }
+  .d-amber .knob-label { color: var(--c-amber); }
+  .d-cyan  .knob-bezel { stroke: var(--c-cyan); }
+  .d-cyan  .knob-label { color: var(--c-cyan); }
+  .d-red   .knob-bezel { stroke: var(--c-red); }
+  .d-red   .knob-label { color: var(--c-red); }
+  .d-sage  .knob-bezel { stroke: var(--c-sage); }
+  .d-sage  .knob-label { color: var(--c-sage); }
+  .d-slate .knob-bezel { stroke: var(--c-slate); }
+  .d-slate .knob-label { color: var(--c-slate); }
+
+  .dials-hint {
+    font-family: var(--mono);
+    font-size: 8px;
+    color: #516359;
+    text-align: center;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  /* =========================================================================
+     07. STRATA LANES & VIEW CONTROLS
+     ========================================================================= */
+  .strata-stack {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    flex: 1;
+    gap: 4px;
+  }
+
+  .meters-block {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    background: var(--well);
+    border: 1px solid var(--border-inner);
+    padding: 4px 6px;
+  }
+  .meter-row {
+    display: grid;
+    grid-template-columns: 78px 1fr 12px;
+    align-items: center;
+    gap: 6px;
+  }
+  .meter-label {
+    font-family: var(--mono);
+    font-size: 8.5px;
+    font-weight: bold;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: opacity 0.12s;
+  }
+  .meter-row.disengaged .meter-label {
+    opacity: 0.52;
+  }
+  .meter-track {
+    height: 4px;
+    background: #0a0d0b;
+    border: 1px solid #1e2822;
+    overflow: hidden;
+  }
+  .meter-fill {
+    height: 100%;
+    width: 0%;
+  }
+
+  .lane-toggle-sq {
+    width: 11px;
+    height: 11px;
+    padding: 0;
+    margin: 0;
+    background: #060807;
+    border: 1px solid #35453c;
+    cursor: pointer;
+    display: block;
+    transition: background-color 0.1s, border-color 0.1s;
+  }
+  .lane-toggle-sq:hover {
+    border-color: var(--vellum);
+  }
+  .lane-toggle-sq[data-lane="0"].active {
+    background: var(--c-green);
+    border-color: var(--vellum);
+  }
+  .lane-toggle-sq[data-lane="1"].active {
+    background: var(--c-amber);
+    border-color: var(--vellum);
+  }
+  .lane-toggle-sq[data-lane="2"].active {
+    background: var(--c-cyan);
+    border-color: var(--vellum);
+  }
+  .lane-toggle-sq[data-lane="3"].active {
+    background: var(--c-red);
+    border-color: var(--vellum);
+  }
+
+  .fx-btn-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 0.78fr;
+    gap: 3px;
+  }
+
+  .view-btn-row {
+    display: grid;
+    grid-template-columns: 1fr 1.05fr 0.85fr 0.85fr;
+    gap: 3px;
+  }
+
+  /* =========================================================================
+     08. ATELIER SHELF (FORMATIONS, GLYPHS & PALETTES)
+     ========================================================================= */
+  #atelier-shelf {
+    border-top: 1px solid var(--col-div);
+    margin-top: 7px;
+    padding: 8px 10px 4px 10px;
+    background: rgba(4, 5, 4, 0.82);
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  #atelier-shelf.collapsed {
+    display: none;
+  }
+
+  .shelf-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .shelf-label {
+    flex: 0 0 96px;
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 1.4px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .shelf-btn-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .shelf-btn {
+    background: #070908;
+    border: 1px solid #324038;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 8.5px;
+    font-weight: bold;
+    letter-spacing: 0.6px;
+    padding: 3px 5px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: 0.1s;
+    white-space: nowrap;
+  }
+  .shelf-btn:hover {
+    background: #151c18;
+    color: var(--vellum);
+    border-color: var(--border-main);
+  }
+  .shelf-btn.active {
+    background: var(--vellum);
+    color: #050605;
+    border-color: var(--vellum);
+  }
+
+  #formation-subtitle {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.8px;
+    color: var(--c-green);
+    text-transform: uppercase;
+    white-space: nowrap;
+    margin-left: auto;
+    padding-left: 8px;
+  }
+
+  .glyph-editor-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-left: 104px;
+  }
+
+  #glyph-strip {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-wrap: wrap;
+    background: var(--well);
+    border: 1px solid var(--border-inner);
+    padding: 3px 4px;
+  }
+
+  .glyph-tile {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #0c0f0d;
+    border: 1px solid #3a4a41;
+    color: var(--vellum);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    transition: 0.1s;
+  }
+  .glyph-tile:hover {
+    border-color: var(--vellum);
+    background: #1a221e;
+  }
+  .glyph-tile.muted {
+    background: #050605;
+    border-color: #1b221e;
+    color: #3a4740;
+    text-decoration: line-through;
+    opacity: 0.55;
+  }
+
+  .custom-glyph-wrap {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  .custom-tag {
+    font-size: 8.5px;
+    letter-spacing: 1.2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  #custom-glyph-input {
+    width: 148px;
+    background: var(--well);
+    border: 1px solid #35453c;
+    color: var(--vellum);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 3px 6px;
+    outline: none;
+    letter-spacing: 1px;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  #custom-glyph-input:focus {
+    border-color: var(--c-cyan);
+  }
+
+  .pal-btn {
+    background: #070908;
+    border: 1px solid #324038;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 8.5px;
+    font-weight: bold;
+    letter-spacing: 0.6px;
+    padding: 3px 6px 4px 6px;
+    cursor: pointer;
+    text-transform: uppercase;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 3px;
+    transition: 0.1s;
+    min-width: 78px;
+  }
+  .pal-btn:hover {
+    background: #151c18;
+    color: var(--vellum);
+    border-color: var(--border-main);
+  }
+  .pal-btn.active {
+    background: var(--vellum);
+    color: #050605;
+    border-color: var(--vellum);
+  }
+  .pal-swatches {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    height: 3px;
+    width: 100%;
+    border: 1px solid rgba(0, 0, 0, 0.55);
+  }
+  .pal-swatches span {
+    display: block;
+    height: 100%;
+  }
+
+  /* =========================================================================
+     09. RESPONSIVE BREAKPOINTS
+     ========================================================================= */
+  @media (max-width: 1080px) {
+    .upper-deck {
+      grid-template-columns: 1fr;
+    }
+    .vertical-text {
+      display: none;
+    }
+    .panel-core {
+      grid-template-columns: 1fr 1fr;
+      border-left: none;
+      border-right: none;
+      gap: 6px 0;
+    }
+    .column {
+      border-bottom: 1px solid var(--col-div);
+      padding: 6px 8px;
+    }
+    .column:nth-child(2n) {
+      border-right: none;
+    }
+    .column:nth-last-child(-n+2) {
+      border-bottom: none;
+    }
+    .glyph-editor-row {
+      padding-left: 0;
+    }
+    #formation-subtitle {
+      margin-left: 0;
+      padding-left: 0;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .panel-core {
+      grid-template-columns: 1fr;
+    }
+    .column {
+      border-right: none;
+      border-bottom: 1px solid var(--col-div);
+    }
+    .column:last-child {
+      border-bottom: none;
+    }
+    .shelf-label {
+      flex: 0 0 100%;
+    }
+    .custom-glyph-wrap {
+      margin-left: 0;
+    }
+  }
+</style>
+</head>
+<body>
+
+  <!-- STAGE VIEWPORT -->
+  <div id="stage-viewport">
+    <canvas id="visualiser-canvas" aria-label="QUIET MACHINERY Visualiser"></canvas>
+  </div>
+
+  <!-- HUD TOGGLE & STATUS TOAST -->
+  <button id="corner-toggle" title="Toggle Console [H]">HIDE [H]</button>
+  <div id="qm-toast">INITIALIZED</div>
+
+  <!-- DRAG & DROP OVERLAY -->
+  <div id="drop-overlay">
+    <div class="drop-plaque">
+      <div class="drop-title">CAST AUDIO OR IMAGE INTO MORTAR</div>
+      <div class="drop-sub">DROP WAV · MP3 · FLAC · OGG  OR  PNG · JPG · WEBP (IX. RELIC)</div>
+    </div>
+  </div>
+
+  <!-- HARDWARE CONTROL CHASSIS -->
+  <div id="chassis-dock">
+    <div id="chassis">
+
+      <!-- UPPER DECK -->
+      <div class="upper-deck">
+        <div class="vertical-text">QUIET MACHINERY</div>
+
+        <div class="panel-core">
+
+          <!-- MODULE 01: SYSTEM & OLED -->
+          <div class="column" data-col="sys">
+            <div class="col-header">SYSTEM &amp; OLED</div>
+            <div class="oled-container">
+              <div class="scope-strip">
+                <canvas id="scope" width="118" height="36" title="Toggle Waveform / Seismograph"></canvas>
+                <button type="button" id="btn-viz-scope" title="Full-Screen Scope Override [V]">VIZ</button>
+              </div>
+              <div class="oled-row">
+                <button class="oled-btn" id="btn-activate" title="Start / Suspend Audio Engine">ACTIVATE</button>
+                <button class="oled-btn" id="btn-scatter" title="Randomize Dials &amp; Seed [S]">SCATTER</button>
+                <button class="oled-btn" id="btn-drift" title="Slow Organic Parameter Walk">DRIFT</button>
+              </div>
+              <div class="oled-row">
+                <button class="oled-btn freeze" id="btn-freeze" title="Freeze Frame [X]">FREEZE</button>
+                <button class="oled-btn cast" id="btn-cast" title="Export Archival PNG Plate [C]">[C] CAST</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- MODULE 02: INGEST & TRANSPORT -->
+          <div class="column" data-col="ingest">
+            <div class="col-header">INGEST &amp; TRANSPORT</div>
+            <div class="ingest-stack">
+              <div class="oled-row">
+                <button class="oled-btn" id="btn-mic" title="Engage Live Audio Input">MIC</button>
+                <button class="oled-btn" id="btn-file" title="Load Audio or Image File">FILE</button>
+                <button class="oled-btn active-amber" id="btn-mon" title="Toggle Speaker Monitor">MON: ON</button>
+                <input type="file" id="file-upload" accept=".wav,.mp3,.m4a,.flac,.ogg,.aiff,.aif,.png,.jpg,.jpeg,.webp" style="display:none;">
+              </div>
+
+              <div class="mic-cycler" title="Select Audio Input Channel">
+                <button type="button" class="mic-step-btn" id="btn-mic-prev" aria-label="Previous Audio Input">&lt;</button>
+                <div id="mic-device-label">DEFAULT AUDIO INPUT</div>
+                <button type="button" class="mic-step-btn" id="btn-mic-next" aria-label="Next Audio Input">&gt;</button>
+              </div>
+
+              <div id="file-name-display" class="empty" title="No file loaded">NO FILE // DROP AUDIO OR IMAGE</div>
+
+              <div class="transport-row">
+                <button class="oled-btn" id="btn-play-pause" title="Play / Pause [Space]">&#9654;</button>
+                <div id="ascii-scrub" class="ascii-scrub disabled" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" title="Scrub Audio">[░░░░░░░░░░░░]</div>
+                <span id="file-timecode">00:00/00:00</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- MODULE 03: DOMAIN DIALS -->
+          <div class="column" data-col="dials">
+            <div class="col-header" id="hdr-dials">DOMAIN DIALS</div>
+            <div class="dials-row">
+              <!-- GAIN -->
+              <div class="knob-container d-green">
+                <div class="knob-label">GAIN</div>
+                <svg class="knob-svg" id="knob-gain" data-param="gain" data-val="0.50" data-default="0.50" viewBox="0 0 44 44" title="Input Gain (0.25x - 4.00x)">
+                  <g class="knob-ticks">
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                  </g>
+                  <circle class="knob-bezel" cx="22" cy="22" r="15.5"></circle>
+                  <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                  <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                </svg>
+                <div class="knob-readout" id="readout-gain">1.00x</div>
+              </div>
+
+              <!-- EROSION -->
+              <div class="knob-container d-amber">
+                <div class="knob-label">EROSION</div>
+                <svg class="knob-svg" id="knob-erosion" data-param="erosion" data-val="0.00" data-default="0.00" viewBox="0 0 44 44" title="Stone Weathering &amp; Gusts">
+                  <g class="knob-ticks">
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                  </g>
+                  <circle class="knob-bezel" cx="22" cy="22" r="15.5"></circle>
+                  <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                  <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                </svg>
+                <div class="knob-readout" id="readout-erosion">0.00</div>
+              </div>
+
+              <!-- TESSELLATION -->
+              <div class="knob-container d-cyan">
+                <div class="knob-label">TESSELLATION</div>
+                <svg class="knob-svg" id="knob-tessellation" data-param="tessellation" data-val="0.50" data-default="0.50" viewBox="0 0 44 44" title="Subdivision &amp; Grid Frequency">
+                  <g class="knob-ticks">
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                  </g>
+                  <circle class="knob-bezel" cx="22" cy="22" r="15.5"></circle>
+                  <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                  <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                </svg>
+                <div class="knob-readout" id="readout-tessellation">0.50</div>
+              </div>
+
+              <!-- FRACTURE -->
+              <div class="knob-container d-red">
+                <div class="knob-label">FRACTURE</div>
+                <svg class="knob-svg" id="knob-fracture" data-param="fracture" data-val="0.00" data-default="0.00" viewBox="0 0 44 44" title="Transient Shear, Calving &amp; Lightning">
+                  <g class="knob-ticks">
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                  </g>
+                  <circle class="knob-bezel" cx="22" cy="22" r="15.5"></circle>
+                  <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                  <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                </svg>
+                <div class="knob-readout" id="readout-fracture">0.00</div>
+              </div>
+
+              <!-- GROW -->
+              <div class="knob-container d-sage">
+                <div class="knob-label">GROW</div>
+                <svg class="knob-svg" id="knob-grow" data-param="grow" data-val="0.00" data-default="0.00" viewBox="0 0 44 44" title="Morphological Mutation &amp; Pareidolia">
+                  <g class="knob-ticks">
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                  </g>
+                  <circle class="knob-bezel" cx="22" cy="22" r="15.5"></circle>
+                  <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                  <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                </svg>
+                <div class="knob-readout" id="readout-grow">0.00</div>
+              </div>
+
+              <!-- PRLX -->
+              <div class="knob-container d-slate">
+                <div class="knob-label">PRLX</div>
+                <svg class="knob-svg" id="knob-prlx" data-param="prlx" data-val="0.25" data-default="0.25" viewBox="0 0 44 44" title="2.5D Plane Separation &amp; Perspective">
+                  <g class="knob-ticks">
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                  </g>
+                  <circle class="knob-bezel" cx="22" cy="22" r="15.5"></circle>
+                  <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                  <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                </svg>
+                <div class="knob-readout" id="readout-prlx">0.25</div>
+              </div>
+            </div>
+            <div class="dials-hint">DRAG · SHIFT FINE · DBL-CLK RESET</div>
+          </div>
+
+          <!-- MODULE 04: STRATA & VIEW -->
+          <div class="column" data-col="strata">
+            <div class="col-header">STRATA &amp; VIEW</div>
+            <div class="strata-stack">
+              <div class="meters-block" title="Engage Visual Layers [Q / W / E / R] · [A] All">
+                <div class="meter-row disengaged" id="mrow-0">
+                  <span class="meter-label" data-lane="0" style="color: var(--c-green);">I. STRATA [Q]</span>
+                  <div class="meter-track"><div class="meter-fill" id="meter-0" style="background: var(--c-green);"></div></div>
+                  <button type="button" class="lane-toggle-sq" id="lane-btn-0" data-lane="0" aria-pressed="false" title="Layer I: Midground Architecture [Q]"></button>
+                </div>
+                <div class="meter-row disengaged" id="mrow-1">
+                  <span class="meter-label" data-lane="1" style="color: var(--c-amber);">II. EROSION [W]</span>
+                  <div class="meter-track"><div class="meter-fill" id="meter-1" style="background: var(--c-amber);"></div></div>
+                  <button type="button" class="lane-toggle-sq" id="lane-btn-1" data-lane="1" aria-pressed="false" title="Layer II: Foreground Particles [W]"></button>
+                </div>
+                <div class="meter-row disengaged" id="mrow-2">
+                  <span class="meter-label" data-lane="2" style="color: var(--c-cyan);">III. SILICA [E]</span>
+                  <div class="meter-track"><div class="meter-fill" id="meter-2" style="background: var(--c-cyan);"></div></div>
+                  <button type="button" class="lane-toggle-sq" id="lane-btn-2" data-lane="2" aria-pressed="false" title="Layer III: Background Patina [E]"></button>
+                </div>
+                <div class="meter-row disengaged" id="mrow-3">
+                  <span class="meter-label" data-lane="3" style="color: var(--c-red);">IV. LETHE [R]</span>
+                  <div class="meter-track"><div class="meter-fill" id="meter-3" style="background: var(--c-red);"></div></div>
+                  <button type="button" class="lane-toggle-sq" id="lane-btn-3" data-lane="3" aria-pressed="false" title="Layer IV: Peripheral Borders [R]"></button>
+                </div>
+              </div>
+
+              <div class="fx-btn-row">
+                <button type="button" class="oled-btn" id="btn-artfx" title="Occlusion &amp; Volumetric Rim-Light [T]">[T] ARTFX</button>
+                <button type="button" class="oled-btn" id="btn-spirits" title="Summon Domain Entities [Y]">[Y] SPIRITS</button>
+                <button type="button" class="oled-btn" id="btn-density" title="Toggle 1X / 2X Grid Resolution [Z]">[Z] 1X</button>
+              </div>
+
+              <div class="view-btn-row">
+                <button class="oled-btn" id="btn-aspect" title="Stage Aspect: FULL / 9:16 / 16:9 [O]">[O] FULL</button>
+                <button class="oled-btn active" id="btn-atelier" title="Toggle Atelier Shelf [D]">[D] ATELIER</button>
+                <button class="oled-btn" id="btn-fullscreen" title="Toggle Fullscreen [F]">[F] SCRN</button>
+                <button class="oled-btn" id="btn-hide" title="Hide Console [H]">[H] HIDE</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="vertical-text">VISUAL ENGINE</div>
+      </div>
+
+      <!-- LOWER SHELF: ATELIER -->
+      <div id="atelier-shelf">
+
+        <!-- FORMATIONS -->
+        <div class="shelf-row">
+          <div class="shelf-label">FORMATION [M]</div>
+          <div class="shelf-btn-group" id="formation-buttons"></div>
+          <div id="formation-subtitle">STEPPED PORTAL // APPARITION</div>
+        </div>
+
+        <!-- SYMBOLS -->
+        <div class="shelf-row">
+          <div class="shelf-label">SYMBOLS [G]</div>
+          <div class="shelf-btn-group" id="symbol-set-buttons"></div>
+        </div>
+        <div class="glyph-editor-row">
+          <div id="glyph-strip" title="Click glyphs to mute or unmute"></div>
+          <div class="custom-glyph-wrap">
+            <span class="custom-tag">CUSTOM</span>
+            <input type="text" id="custom-glyph-input" maxlength="24" placeholder="·┼◈╬▓█" spellcheck="false" autocomplete="off">
+            <button class="shelf-btn" id="btn-custom-set" title="Apply Custom Ramp">SET</button>
+            <button class="shelf-btn" id="btn-custom-rst" title="Reset Symbol Set">RST</button>
+          </div>
+        </div>
+
+        <!-- PALETTES -->
+        <div class="shelf-row">
+          <div class="shelf-label">PALETTE [P]</div>
+          <div class="shelf-btn-group" id="palette-buttons"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <audio id="audio-player" loop crossorigin="anonymous" style="display:none;"></audio>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ===========================================================================
+     01. CONFIGURATION: FORMATIONS, GLYPH LEXICONS, PALETTES & IDLE TEXT
+     =========================================================================== */
+  const FORMATIONS = [
+    { id: 0, label: 'I. MONOLITH',    subtitle: 'STEPPED PORTAL // APPARITION' },
+    { id: 1, label: 'II. SEAL',       subtitle: 'SACRED ASTROLABE // WATCHER ORBS' },
+    { id: 2, label: 'III. MOSAIC',    subtitle: 'RELIQUARY WALL // STONE PARIEDOLIA' },
+    { id: 3, label: 'IV. STRATA',     subtitle: 'FAULT CHASM // FOSSIL RIBS' },
+    { id: 4, label: 'V. OBELISK',     subtitle: 'TOTEM SPINE // SHROUDED IDOL' },
+    { id: 5, label: 'VI. VAULT',      subtitle: 'STONE CORRIDOR // WRAITHS' },
+    { id: 6, label: 'VII. CITADEL',   subtitle: 'SACRED SKYLINE // GARGOYLES' },
+    { id: 7, label: 'VIII. HORIZON',  subtitle: 'ECLIPSE // SPECTRAL BUST' },
+    { id: 8, label: 'IX. RELIC',      subtitle: 'IMAGE-TO-STRATA // DROP PNG/JPG' }
+  ];
+
+  const SYMBOL_LEXICONS = [
+    { name: 'RELIQUARY', chars: '·∶╵┼†‡◈❖╬▓█' },
+    { name: 'SIGILUM',   chars: '·∘○△▽◬⊕⊗⊙✦◉▓' },
+    { name: 'MASONRY',   chars: '·─│┌┐┼╞╡╬╠╣▒▓█' },
+    { name: 'OSSUARY',   chars: '·˙╱╲╳‹›∧∨⟐⌧╬▓' },
+    { name: 'ASTRAL',    chars: '·˙∘∗✧✦⌖◎⊕⊙⊚◉' },
+    { name: 'RUNIC',     chars: '·╵╷├┤┬┴⟁⊻⊢⊣╫╪╬█' },
+    { name: 'HALFTONE',  chars: '·∶∴∵░▒▓▪▫■█' },
+    { name: 'CIPHER',    chars: '·:|=+-‡┃▼#▓█' }
+  ];
+
+  const PALETTES = [
+    {
+      name: 'MNEMOSYNE',
+      bg: '#060606',
+      rest: '#4e705e',
+      domains: ['#57b570', '#c9913e', '#4f99c7', '#c45858'],
+      highlight: '#f2f2ec'
+    },
+    {
+      name: 'OBSIDIAN',
+      bg: '#050505',
+      rest: '#636363',
+      domains: ['#878787', '#adadad', '#d1d1d1', '#ededed'],
+      highlight: '#ffffff'
+    },
+    {
+      name: 'LIMESTONE',
+      bg: '#090807',
+      rest: '#756f63',
+      domains: ['#9c9381', '#bfa878', '#d9b56c', '#ebe3cf'],
+      highlight: '#fffbf0'
+    },
+    {
+      name: 'VERDIGRIS',
+      bg: '#050908',
+      rest: '#4b7368',
+      domains: ['#5ca38d', '#54bfa9', '#cc884e', '#d6ede7'],
+      highlight: '#f2fffb'
+    },
+    {
+      name: 'CINNABAR',
+      bg: '#070505',
+      rest: '#665858',
+      domains: ['#8c7d7d', '#b37a66', '#d1503d', '#ed3e28'],
+      highlight: '#ffece8'
+    },
+    {
+      name: 'SLATE & SALT',
+      bg: '#05080c',
+      rest: '#586a80',
+      domains: ['#728ca8', '#84adc9', '#57bae0', '#dcebf7'],
+      highlight: '#f5fbff'
+    },
+    {
+      name: 'SULPHUR',
+      bg: '#080804',
+      rest: '#696b4d',
+      domains: ['#8b8f5c', '#aba852', '#cfb240', '#ede172'],
+      highlight: '#fffcd6'
+    },
+    {
+      name: 'ASH & RUST',
+      bg: '#090605',
+      rest: '#70635d',
+      domains: ['#947f71', '#bd7042', '#d65329', '#ebba98'],
+      highlight: '#fff2e8'
+    },
+    {
+      name: 'VELLUM INK',
+      bg: '#e8e2d5',
+      rest: '#9e9687',
+      domains: ['#3a6e4c', '#ab581d', '#246887', '#bd281d'],
+      highlight: '#050504'
+    },
+    {
+      name: 'PHOSPHOR',
+      bg: '#040905',
+      rest: '#327847',
+      domains: ['#3da85d', '#4cd473', '#27eb83', '#00ff44'],
+      highlight: '#d9ffe3'
+    }
+  ];
+
+  const SUITE_TITLE_STAGES = [
+    {
+      suite: 'KAMEN',
+      entries: [
+        { main: 'QUIET MACHINERY', sub: 'STRATUM I // LITHIC MORTAR' },
+        { main: 'QUIET SANCTUM',   sub: 'SIT WITH THE UNCOMFORTABILITY' },
+        { main: 'MORTAR & STONE',  sub: 'AWAITING ACOUSTIC EXCITATION' }
+      ]
+    },
+    {
+      suite: 'KARST',
+      entries: [
+        { main: 'QUIET PRAYER',    sub: 'STRATUM II // TECTONIC FAULT' },
+        { main: 'FRACTURED PSALM', sub: 'CATCH A RAGGED SIGH IN THE STONE' },
+        { main: 'FAULT LITURGY',   sub: 'FRICTION IS THE ONLY WITNESS' }
+      ]
+    },
+    {
+      suite: 'MNEMOSYNE',
+      entries: [
+        { main: 'QUIET MOMENTS',   sub: 'STRATUM III // SLICED MEMORY' },
+        { main: 'BURIED MEMENTO',  sub: 'NOTHING IS RETRIEVED WHOLE' },
+        { main: 'RESIDUAL TRACE',  sub: 'MORTAR REMEMBERS EVERY TREMOR' }
+      ]
+    },
+    {
+      suite: 'ASPERITAS',
+      entries: [
+        { main: 'WEATHERED SIGH',  sub: 'STRATUM IV // WIND EROSION' },
+        { main: 'HOLLOW VESPER',   sub: 'LET THE SILENCE CARVE THE CHAMBER' },
+        { main: '† ◈ ╬  ❖ ▓ ◈',    sub: 'CYCLE COMPLETING // REFORMING' }
+      ]
+    }
+  ];
+
+  /* ===========================================================================
+     02. MATH UTILITIES & SIGNED DISTANCE FIELDS
+     =========================================================================== */
+  const PI = Math.PI;
+  const TAU = Math.PI * 2;
+
+  function clamp(v, lo, hi) {
+    if (!Number.isFinite(v)) return lo;
+    return v < lo ? lo : (v > hi ? hi : v);
+  }
+
+  function hash2(x, y) {
+    const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453123;
+    return s - Math.floor(s);
+  }
+
+  function regularPolygonSDF(x, y, sides, radius, rotAngle) {
+    const safeSides = Math.max(3, sides || 3);
+    const a = Math.atan2(y, x) + rotAngle;
+    const r = Math.hypot(x, y);
+    const seg = TAU / safeSides;
+    const d = Math.cos(Math.floor(0.5 + a / seg) * seg - a) * r;
+    return d - radius;
+  }
+
+  function applyWidePerspective(nx, ny, warpK) {
+    if (warpK <= 0.001) return { x: nx, y: ny };
+    const r2 = Math.min(1.8, nx * nx + ny * ny);
+    const scale = Math.max(0.62, 1.0 - warpK * r2);
+    return { x: nx * scale, y: ny * scale };
+  }
+
+  /* ===========================================================================
+     03. PROCEDURAL ENTITY & RELIEF EVALUATORS
+     =========================================================================== */
+  function evaluateSpectralFigure(nx, ny, col, row, f, vGen, figureScale, offsetX, offsetY) {
+    const { p0, p1, b0, b1, b2, b3, tess } = f;
+    const safeScale = Math.max(0.1, figureScale || 1.0);
+    const px = (nx - offsetX) / safeScale;
+    const py = (ny - offsetY) / safeScale;
+
+    const sway = Math.sin(py * 3.2 + p0 * 1.1 + vGen.seed) * 0.045 * (0.4 + vGen.mutAmt);
+    const sx = px + sway;
+    const ax = Math.abs(sx);
+
+    let density = 0;
+    let zone = 0;
+    let peak = false;
+    let isSkeleton = false;
+
+    const headCy = -0.46;
+    const headRx = Math.max(0.08, 0.24 + (vGen.g2 - 0.5) * 0.05);
+    const headRy = Math.max(0.08, 0.30 + (vGen.g3 - 0.5) * 0.05);
+    const headDist = Math.hypot(sx / headRx, (py - headCy) / headRy);
+
+    const shoulderProg = clamp((py + 0.24) / 1.08, 0, 1);
+    const foldWave = Math.sin(py * (8 + tess * 8) + sx * 12 + vGen.seed) * 0.035;
+    const bodyHalfW = Math.max(0.08, 0.22 + Math.sin(Math.min(1, shoulderProg * 2.2) * PI * 0.5) * (0.28 + vGen.g4 * 0.12) + foldWave);
+
+    if (headDist <= 1.05) {
+      const edgeRim = Math.abs(headDist - 0.94);
+      const facePlane = 1.0 - headDist;
+
+      const eyeX = Math.abs(sx - ((vGen.g5 || 0.5) - 0.5) * 0.04) - 0.085;
+      const eyeY = py - (headCy + 0.02);
+      const eyeDist = Math.hypot(eyeX / 0.048, eyeY / 0.030);
+
+      if (eyeDist < 1.0) {
+        if (b3 > 0.35 || b0 > 0.52) {
+          density = 0.92;
+          zone = 3;
+          peak = true;
+          isSkeleton = true;
+        } else {
+          density = 0.0;
+        }
+      } else if (edgeRim < 0.09) {
+        density = 0.76 + b0 * 0.24;
+        zone = 0;
+        peak = b0 > 0.55;
+        isSkeleton = true;
+      } else {
+        const dither = ((col + row) % 2 === 0) ? 0.14 : -0.08;
+        const ridge = Math.cos(sx * (22 + tess * 18) + facePlane * 9.0 + p1 * 0.5) * 0.18;
+        density = clamp(0.26 + facePlane * 0.54 + ridge + dither + b1 * 0.22, 0.12, 0.95);
+        zone = facePlane > 0.52 ? 2 : 1;
+        peak = facePlane > 0.72 && b2 > 0.55;
+      }
+    } else if (py > -0.22 && py <= 0.85 && ax <= bodyHalfW) {
+      const dEdge = bodyHalfW - ax;
+      const drapeRib = Math.cos(sx * (18 + tess * 16) + Math.sin(py * 5.0 + vGen.seed + p1 * 0.4) * 2.2);
+      const dither = ((col * 2 + row) % 3 === 0) ? 0.12 : -0.05;
+
+      if (dEdge < 0.045 || py > 0.80) {
+        density = 0.68 + b0 * 0.30;
+        zone = 0;
+        peak = b0 > 0.58;
+        isSkeleton = true;
+      } else if (drapeRib > 0.35) {
+        density = clamp(0.32 + b1 * 0.45 + dither, 0.15, 0.90);
+        zone = 1;
+        peak = b1 > 0.64;
+      } else {
+        density = clamp(0.18 + (1.0 - ax / bodyHalfW) * 0.32 + dither + b2 * 0.20, 0.10, 0.78);
+        zone = 2;
+      }
+    }
+
+    return { density, zone, peak, isSkeleton };
+  }
+
+  function evaluatePareidoliaMask(nx, ny, col, row, f, vGen) {
+    const { p1, b1, b2, b3, tess } = f;
+    const breath = Math.sin(p1 * 0.7 + vGen.seed) * 0.03;
+    const ax = Math.abs(nx);
+    const py = ny + breath;
+
+    const skullDist = Math.hypot(ax / 0.54, (py + 0.04) / 0.74);
+    if (skullDist > 1.05) return { density: 0, zone: 0, peak: false, isSkeleton: false };
+
+    const eyeDist = Math.hypot((ax - 0.19) / 0.11, (py + 0.14) / 0.075);
+    const browArc = Math.abs(py + 0.24 - Math.cos(ax * 5.5) * 0.05);
+    const noseBridge = (ax < 0.065 && py > -0.14 && py < 0.18);
+    const mouthSlit = (ax < 0.18 && Math.abs(py - 0.34 - Math.cos(ax * 9.0) * 0.025) < 0.032);
+    const hornDist = Math.abs(Math.hypot(ax - 0.28, py + 0.68) - 0.22);
+
+    if (eyeDist < 1.0) {
+      const pupil = eyeDist < 0.36 && (b3 > 0.28 || b2 > 0.45);
+      return { density: pupil ? 0.96 : 0.0, zone: 3, peak: pupil, isSkeleton: pupil };
+    }
+    if (mouthSlit) {
+      return { density: 0.0, zone: 0, peak: false, isSkeleton: false };
+    }
+    if (browArc < 0.038 && ax < 0.36) {
+      return { density: 0.84 + b1 * 0.16, zone: 1, peak: b1 > 0.50, isSkeleton: true };
+    }
+    if (noseBridge) {
+      return { density: 0.74 + b2 * 0.24, zone: 2, peak: b2 > 0.52, isSkeleton: true };
+    }
+    if (hornDist < 0.035 && py < -0.46) {
+      return { density: 0.78 + b3 * 0.22, zone: 3, peak: b3 > 0.48, isSkeleton: true };
+    }
+
+    const relief = 1.0 - skullDist;
+    const contour = Math.cos((ax * 16.0 + py * 12.0) * (0.7 + tess * 0.6)) * 0.16;
+    const dither = ((col + row) % 2 === 0) ? 0.12 : -0.06;
+    const d = clamp(0.28 + relief * 0.52 + contour + dither + b1 * 0.18, 0.12, 0.92);
+    return {
+      density: d,
+      zone: relief > 0.48 ? 2 : 1,
+      peak: relief > 0.72 && b2 > 0.58,
+      isSkeleton: skullDist > 0.88
+    };
+  }
+
+  function evaluateFossilRibcage(nx, ny, f, vGen) {
+    const { p1, b0, b1, b2, tess } = f;
+    const ax = Math.abs(nx + Math.sin(ny * 3.0 + p1 * 0.5 + vGen.seed) * 0.04);
+    if (ax > 0.58 || Math.abs(ny) > 0.72) return { density: 0, zone: 0, peak: false, isSkeleton: false };
+
+    const isSpine = ax < 0.045;
+    const vertebraJoint = Math.abs(((ny * (9 + tess * 6)) % 1) - 0.5) > 0.36;
+
+    const ribFreq = 7.0 + Math.round(tess * 5);
+    const archCurve = ny + Math.pow(ax, 1.6) * 0.85;
+    const ribPhase = Math.abs(((archCurve * ribFreq) % 1) - 0.5);
+    const ribReach = 0.48 * Math.cos(clamp(ny / 0.75, -1, 1) * PI * 0.42);
+
+    if (isSpine) {
+      return {
+        density: vertebraJoint ? (0.86 + b0 * 0.14) : (0.52 + b1 * 0.35),
+        zone: 0,
+        peak: vertebraJoint && b0 > 0.48,
+        isSkeleton: true
+      };
+    }
+    if (ax <= ribReach && ribPhase > 0.34) {
+      return {
+        density: 0.62 + b1 * 0.34 + b2 * 0.15,
+        zone: 1,
+        peak: ribPhase > 0.44 && b2 > 0.52,
+        isSkeleton: true
+      };
+    }
+    return { density: 0, zone: 0, peak: false, isSkeleton: false };
+  }
+
+  function evaluateEngineSpiritEntity(fIdx, nx, ny, f, vGen) {
+    const { p1, p2, b1, b2, b3 } = f;
+    let density = 0;
+    let zone = 3;
+    let peak = false;
+
+    if (fIdx === 1 || fIdx === 7) {
+      const orbCount = 3;
+      const orbitR = (fIdx === 1) ? 0.48 : 0.22;
+      for (let k = 0; k < orbCount; k++) {
+        const ang = p2 * 0.85 + (k * TAU / orbCount) + vGen.seed;
+        const ox = Math.cos(ang) * orbitR;
+        const oy = Math.sin(ang) * orbitR;
+        const d = Math.hypot(nx - ox, ny - oy);
+        if (d < 0.13) {
+          if (d < 0.045) {
+            density = 0.95;
+            zone = 3;
+            peak = true;
+          } else if (d > 0.085) {
+            density = 0.58 + b2 * 0.38;
+            zone = 2;
+          }
+        }
+      }
+    } else if (fIdx === 2 || fIdx === 6) {
+      const wispCount = 4;
+      for (let k = 0; k < wispCount; k++) {
+        const wx = Math.sin(p1 * 0.7 + k * 2.1 + vGen.seed) * 0.58;
+        const wy = Math.cos(p2 * 0.55 + k * 1.7) * 0.42 - (fIdx === 6 ? 0.28 : 0.0);
+        const dx = Math.abs(nx - wx);
+        const dy = ny - wy;
+        const dHead = Math.hypot(dx, dy);
+        if (dHead < 0.075) {
+          density = dHead < 0.032 ? 0.96 : (0.55 + b3 * 0.40);
+          zone = 3;
+          peak = dHead < 0.032;
+        } else if (dy > 0 && dy < 0.26 && dx < (0.06 * (1.0 - dy / 0.26))) {
+          density = Math.max(density, (0.35 + b2 * 0.35) * (1.0 - dy / 0.26));
+          zone = 2;
+        }
+      }
+    } else if (fIdx === 3 || fIdx === 5) {
+      const pairCount = 2;
+      for (let k = 0; k < pairCount; k++) {
+        const cx = (k === 0 ? -0.26 : 0.26) + Math.sin(p1 * 0.6 + k) * 0.08;
+        const cy = (fIdx === 3 ? 0.0 : 0.04) + Math.cos(p2 * 0.8 + k * 2.0) * 0.06;
+        const eyeDistL = Math.hypot((nx - (cx - 0.055)) / 0.035, (ny - cy) / 0.024);
+        const eyeDistR = Math.hypot((nx - (cx + 0.055)) / 0.035, (ny - cy) / 0.024);
+        const shroudDist = Math.hypot((nx - cx) / 0.16, (ny - (cy + 0.08)) / 0.22);
+
+        if (eyeDistL < 1.0 || eyeDistR < 1.0) {
+          density = 0.96;
+          zone = 3;
+          peak = true;
+        } else if (shroudDist < 1.0 && shroudDist > 0.72) {
+          density = Math.max(density, 0.36 + b1 * 0.35);
+          zone = 1;
+        }
+      }
+    }
+
+    return { density, zone, peak };
+  }
+
+  /* ===========================================================================
+     04. FORMATION FIELD EVALUATOR (ENGINES I - IX)
+     =========================================================================== */
+  function evaluateSingleFormation(fIdx, nx, ny, col, row, f, vGen) {
+    const {
+      p0, p1, p2, p3,
+      seed, b0, b1, b2, b3,
+      tess, erosion, fracture,
+      gateShear, gateDrop, cols, rows, frameTick,
+      spiritsOn, dialExplore
+    } = f;
+
+    let density = 0;
+    let zone = 0;
+    let peak = false;
+    let isSkeleton = false;
+    let occludes = false;
+
+    const mut = clamp(vGen.mutAmt || 0, 0, 1);
+    const occultEmergence = clamp((dialExplore - 0.22) * 1.45, 0, 1);
+
+    // I. MONOLITH
+    if (fIdx === 0) {
+      const asymSkew = (vGen.g1 - 0.5) * 0.24 * mut;
+      const splitGap = (mut > 0.45 && vGen.g2 > 0.55) ? (vGen.g2 - 0.55) * 0.32 * mut : 0;
+      const ax = Math.abs(nx + asymSkew * ny);
+      const heave = b0 * 0.14;
+      const stepCount = Math.max(2, 3 + Math.round(tess * 4 + vGen.g3 * 3 * mut));
+
+      const yNorm = clamp((ny + 0.86) / 1.72, 0, 1);
+      const stepQuant = Math.floor(yNorm * stepCount) / stepCount;
+      const cragNoise = Math.sin(ny * (7 + vGen.g4 * 12) + vGen.seed) * 0.08 * mut;
+      const outerW = 0.44 + stepQuant * 0.34 + heave + cragNoise;
+      const topY = -0.84 - heave * 0.30;
+      const botY = 0.84 + heave * 0.25;
+
+      if (ax <= outerW && ax >= splitGap && ny >= topY && ny <= botY) {
+        const doorW = 0.22 + b0 * 0.04 + mut * 0.06;
+        const doorTop = -0.28 - b0 * 0.04 - mut * 0.16;
+        const inSanctum = (splitGap === 0) && (ax < doorW && ny > doorTop && ny < botY - 0.07);
+
+        if (!inSanctum) {
+          occludes = true;
+          const dOuterX = outerW - ax;
+          const dSplitX = ax - splitGap;
+          const dOuterY = Math.min(ny - topY, botY - ny);
+          const dStepH = Math.abs(((yNorm * stepCount) % 1) - 0.5);
+          const isOuterFrame = (dOuterX < 0.055) || (dOuterY < 0.055) || (splitGap > 0 && dSplitX < 0.045);
+          const isStepLedge = (dStepH > 0.44 && ax > doorW + 0.06);
+
+          const dDoorX = ax - doorW;
+          const dDoorTop = doorTop - ny;
+          const isDoorFrame = (splitGap === 0) && (
+            (dDoorX >= 0 && dDoorX < 0.055 && ny >= doorTop - 0.055) ||
+            (dDoorTop >= 0 && dDoorTop < 0.055 && ax <= doorW + 0.055)
+          );
+
+          const isPlinth = (ny > botY - 0.09);
+
+          const ribFreq = 10.0 + tess * 16.0;
+          const ribPhase = b1 * 2.4 + Math.sin(p1 * 0.55 + seed) * 0.45;
+          const inPillarZone = (ax > doorW + 0.065 && ax < outerW - 0.065 && ny > doorTop && ny < botY - 0.09);
+          const pillarRib = inPillarZone && (Math.cos((ax - doorW) * ribFreq * PI - ribPhase) > 0.42);
+
+          const inLintel = (ny > topY + 0.065 && ny < doorTop - 0.065 && ax < outerW - 0.065);
+          const lintelBand = inLintel && (Math.sin(ny * (16 + tess * 14) + p2 * 0.8) > 0.25);
+          const lintelRune = inLintel && (Math.cos(ax * (18 + tess * 18) + seed * 3.0 + p3 * 0.6) * Math.sin(ny * 24) > (0.58 - b3 * 0.42));
+
+          if (isOuterFrame || isDoorFrame || isPlinth) {
+            density = 0.72 + b0 * 0.28;
+            zone = 0;
+            peak = b0 > 0.55;
+            isSkeleton = true;
+          } else if (isStepLedge) {
+            density = 0.54 + b0 * 0.26;
+            zone = 0;
+            isSkeleton = true;
+          } else if (pillarRib) {
+            density = 0.40 + b1 * 0.48 + b2 * 0.14;
+            zone = 1;
+            peak = b1 > 0.58;
+          } else if (lintelRune) {
+            density = 0.46 + b3 * 0.54;
+            zone = 3;
+            peak = b3 > 0.45;
+          } else if (lintelBand) {
+            density = 0.24 + b2 * 0.36;
+            zone = 2;
+          } else {
+            const ashlar = ((col + Math.floor(row / 2) * 3) % 5 === 0) && (row % 2 === 0);
+            if (ashlar) {
+              density = 0.16 + b0 * 0.18;
+              zone = 0;
+            }
+          }
+        } else {
+          const spiritDrive = spiritsOn
+            ? clamp(0.55 + (b1 + b2) * 0.55 - b0 * 0.25, 0.35, 1.0)
+            : occultEmergence;
+          if (spiritDrive > 0.08) {
+            const ghost = evaluateSpectralFigure(nx, ny, col, row, f, vGen, 0.62, 0, 0.22);
+            if (ghost.density > 0.04) {
+              density = ghost.density * spiritDrive;
+              zone = ghost.zone;
+              peak = ghost.peak;
+              isSkeleton = ghost.isSkeleton;
+            }
+          }
+          if (density === 0 && ny > botY - 0.13 && ax < doorW - 0.04) {
+            density = 0.22 + b2 * 0.30;
+            zone = 2;
+          }
+        }
+
+        const faultAmp = Math.max(b0 > 0.48 ? (b0 - 0.48) * 1.6 : 0, gateShear);
+        if (faultAmp > 0.05) {
+          const crackX = Math.sin(ny * 11.0 + seed * 4.0 + Math.floor(p0 * 2.0)) * 0.045;
+          const dCrack = Math.abs(nx - crackX);
+          if (dCrack < 0.022 + faultAmp * 0.025) {
+            density = 0.92;
+            zone = 3;
+            peak = true;
+            isSkeleton = true;
+          }
+        }
+      }
+
+    // II. SEAL
+    } else if (fIdx === 1) {
+      const eccX = (vGen.g1 - 0.5) * 0.14 * mut;
+      const eccY = (vGen.g2 - 0.5) * 0.14 * mut;
+      const r = Math.hypot(nx, ny);
+      const rInner = Math.hypot(nx - eccX, ny - eccY);
+      const theta = Math.atan2(ny, nx);
+      const R = 0.78 + b0 * 0.10;
+
+      if (r <= R + 0.045) {
+        const sides = Math.max(3, 3 + Math.round(tess * 4 + vGen.g3 * 5 * mut));
+        const rotA = p1 * 0.35 + b1 * 0.55 + vGen.seed;
+        const rotB = -p2 * 0.45 - b2 * 0.65 + vGen.seed + PI / sides;
+
+        const dRingOut = Math.abs(r - R);
+        const dRingIn = Math.abs(rInner - (R - 0.11));
+        const inRingBand = (r <= R && r >= R - 0.095);
+        const tickCount = 12 + Math.round(tess * 24 + (vGen.g6 || 0.5) * 12 * mut);
+        const isTick = inRingBand && (Math.abs(Math.cos(theta * tickCount * 0.5 + p3 * 0.25)) > 0.92);
+
+        const isCardinal = (Math.abs(nx) < 0.018 || Math.abs(ny) < 0.018) && r > 0.14 && r < R - 0.095;
+        const isDiag = (Math.abs(Math.abs(nx) - Math.abs(ny)) < 0.016) && r > 0.18 && r < R - 0.11;
+
+        const dPoly1 = Math.abs(regularPolygonSDF(nx - eccX, ny - eccY, sides, R * 0.69, rotA));
+        const dPoly2 = Math.abs(regularPolygonSDF(nx + eccX, ny + eccY, Math.max(3, sides - 1), R * 0.50, rotB));
+        const dPoly3 = Math.abs(regularPolygonSDF(nx, ny, sides + 1, R * 0.30, rotA * 1.4));
+
+        const petalWave = Math.abs(r - (0.44 + Math.cos(theta * sides + rotA) * 0.12 * mut));
+        const isPetal = (mut > 0.25) && (petalWave < 0.018);
+
+        const dOculus = Math.abs(rInner - (0.14 + b0 * 0.04));
+        const nHarm = 2 + Math.round(tess * 4 + vGen.g4 * 4 * mut);
+        const chladni = Math.cos(r * (10 + tess * 12) - p2 * 1.1) * Math.cos(theta * nHarm + rotA * 0.5);
+        const isNodal = (r < R - 0.11 && r > 0.15) && (Math.abs(chladni) < (0.09 + b2 * 0.12 + mut * 0.05));
+
+        if (dRingOut < 0.026 || dRingIn < 0.020) {
+          density = 0.76 + b0 * 0.24;
+          zone = 0;
+          peak = b0 > 0.55;
+          isSkeleton = true;
+          occludes = true;
+        } else if (isTick) {
+          density = 0.42 + b3 * 0.56;
+          zone = 3;
+          peak = b3 > 0.46;
+          occludes = true;
+        } else if (dPoly1 < 0.024) {
+          density = 0.66 + b1 * 0.34;
+          zone = 1;
+          peak = b1 > 0.55;
+          isSkeleton = true;
+          occludes = true;
+        } else if (dPoly2 < 0.022 || isPetal) {
+          density = 0.58 + b2 * 0.40;
+          zone = 2;
+          peak = b2 > 0.52;
+          isSkeleton = true;
+          occludes = true;
+        } else if (dOculus < 0.022) {
+          density = 0.64 + b0 * 0.36;
+          zone = 0;
+          peak = b0 > 0.50;
+          isSkeleton = true;
+          occludes = true;
+        } else if (dPoly3 < 0.018 && r > 0.15) {
+          density = 0.38 + b2 * 0.42;
+          zone = 2;
+        } else if (isCardinal) {
+          density = 0.32 + b3 * 0.45;
+          zone = 3;
+        } else if (isNodal) {
+          density = 0.22 + b2 * 0.52 + b1 * 0.18;
+          zone = 2;
+        } else if (isDiag && (b1 + b3 > 0.25)) {
+          density = 0.18 + b3 * 0.34;
+          zone = 3;
+        }
+
+        if (occultEmergence > 0.12 && r < R * 0.62) {
+          const bust = evaluateSpectralFigure(nx, ny, col, row, f, vGen, 0.78, eccX, eccY + 0.08);
+          if (bust.density > density) {
+            density = bust.density * occultEmergence;
+            zone = bust.zone;
+            peak = bust.peak;
+            isSkeleton = bust.isSkeleton;
+          }
+        }
+      }
+
+    // III. MOSAIC
+    } else if (fIdx === 2) {
+      if (Math.abs(ny) <= 0.86 && Math.abs(nx) <= (cols / Math.max(1, rows)) * 0.86) {
+        const wMod = Math.round((vGen.g1 - 0.5) * 5 * mut);
+        const hMod = Math.round((vGen.g2 - 0.5) * 4 * mut);
+        const tileW = clamp(Math.round(12 - tess * 6) + wMod, 5, 16);
+        const tileH = clamp(Math.round(8 - tess * 3) + hMod, 4, 12);
+        const centerCol = Math.floor(cols * 0.5);
+        const centerRow = Math.floor(rows * 0.5);
+
+        const relC = col - centerCol + Math.floor(tileW * 0.5);
+        const relR = row - centerRow + Math.floor(tileH * 0.5);
+        const tx = Math.floor(relC / tileW);
+        const ty = Math.floor(relR / tileH);
+        const lx = ((relC % tileW) + tileW) % tileW;
+        const ly = ((relR % tileH) + tileH) % tileH;
+
+        const stx = Math.abs(tx);
+        const sty = Math.abs(ty);
+
+        const tileZone = ((stx + sty + Math.floor(vGen.seed * 4.0)) % 4 + 4) % 4;
+        const bandVals = [b0, b1, b2, b3];
+        const tileEnergy = bandVals[tileZone] || 0;
+
+        let tileDropped = false;
+        if (fracture > 0.02 && gateDrop > 0.05) {
+          const dropRoll = hash2(tx * 1.7 + Math.floor(frameTick * 0.2), ty * 2.3 + seed);
+          if (dropRoll < fracture * gateDrop * 0.55) {
+            tileDropped = true;
+          }
+        }
+
+        if (!tileDropped) {
+          const isGrout = (lx === 0 || ly === 0);
+          if (!isGrout) {
+            occludes = true;
+            const innerW = Math.max(1, tileW - 1);
+            const innerH = Math.max(1, tileH - 1);
+            const ix = lx - 1;
+            const iy = ly - 1;
+            const isBorder = (ix === 0 || ix === innerW - 1 || iy === 0 || iy === innerH - 1);
+            const isCorner = (ix === 0 || ix === innerW - 1) && (iy === 0 || iy === innerH - 1);
+
+            const ux = ((ix + 0.5) / innerW) * 2.0 - 1.0;
+            const uy = ((iy + 0.5) / innerH) * 2.0 - 1.0;
+            const manhattan = Math.abs(ux) + Math.abs(uy);
+            const maxBox = Math.max(Math.abs(ux), Math.abs(uy));
+
+            const motifType = ((stx * 3 + sty + Math.floor(vGen.g3 * 4)) % 3 + 3) % 3;
+            let motifHit = false;
+            if (motifType === 0) {
+              motifHit = Math.abs(manhattan - (0.58 + tileEnergy * 0.25)) < 0.24;
+            } else if (motifType === 1) {
+              motifHit = Math.abs(maxBox - (0.48 + tileEnergy * 0.22)) < 0.20;
+            } else {
+              motifHit = (Math.abs(ux) < 0.22 || Math.abs(uy) < 0.22);
+            }
+
+            const centerSeal = (Math.hypot(ux, uy) < 0.26);
+
+            zone = tileZone;
+            if (isCorner) {
+              density = 0.54 + tileEnergy * 0.42;
+              peak = tileEnergy > 0.58;
+              isSkeleton = true;
+            } else if (isBorder) {
+              density = 0.28 + tileEnergy * 0.34;
+              isSkeleton = (stx + sty) % 2 === 0;
+            } else if (centerSeal) {
+              density = 0.44 + tileEnergy * 0.54;
+              peak = tileEnergy > 0.52;
+              isSkeleton = true;
+            } else if (motifHit && (tileEnergy > 0.14 || (stx + sty) % 2 === 0)) {
+              density = 0.24 + tileEnergy * 0.64;
+              peak = tileEnergy > 0.66;
+            }
+
+            if (occultEmergence > 0.10) {
+              const mask = evaluatePareidoliaMask(nx, ny, col, row, f, vGen);
+              const wMask = clamp(occultEmergence * (0.65 + b1 * 0.45), 0, 1);
+              density = density * (1.0 - wMask) + mask.density * wMask;
+              if (wMask > 0.45 && mask.density > 0.08) {
+                zone = mask.zone;
+                peak = mask.peak;
+                isSkeleton = mask.isSkeleton;
+              } else if (wMask > 0.45 && mask.density === 0) {
+                occludes = false;
+              }
+            }
+          }
+        }
+      }
+
+    // IV. STRATA
+    } else if (fIdx === 3) {
+      const dipSlope = (vGen.g1 - 0.5) * 0.55 * mut;
+      const syncline = Math.cos(nx * (2.5 + vGen.g4 * 3.0)) * 0.24 * mut;
+      const shelfSteps = Math.max(2, 5 + Math.round(tess * 7 + vGen.g2 * 5 * mut));
+      const qx = Math.floor(nx * shelfSteps) / shelfSteps;
+      const horizonTop = -0.64 + qx * dipSlope * 0.5 + syncline + Math.sin(qx * 3.1 + vGen.seed) * 0.10;
+      const bedrockBot = 0.72 + qx * dipSlope * 0.3 - syncline * 0.4 + Math.cos(qx * 2.4 + vGen.seed) * 0.06;
+
+      if (ny >= horizonTop && ny <= bedrockBot) {
+        const riftCenter = qx * dipSlope + syncline * 0.7 + Math.sin(qx * 2.8 + p0 * 0.45 + vGen.seed) * 0.12 + (b1 - 0.2) * 0.06;
+        const riftHalf = 0.065 + b0 * 0.17 + gateShear * 0.09;
+        const dRift = Math.abs(ny - riftCenter);
+
+        if (dRift < riftHalf) {
+          density = 0;
+        } else {
+          occludes = true;
+          if (dRift < riftHalf + 0.048) {
+            density = 0.76 + b0 * 0.24;
+            zone = 3;
+            peak = b0 > 0.45 || b3 > 0.45;
+            isSkeleton = true;
+          } else {
+            const strataCount = 4 + Math.round(tess * 6);
+            const depthShift = (ny < riftCenter ? -1 : 1) * (b0 * 0.08 + b1 * 0.12);
+            const sy = (ny - horizonTop + depthShift) * strataCount;
+            const stratumIdx = Math.floor(sy);
+            const sFrac = sy - stratumIdx;
+
+            const isSeam = (sFrac < 0.14 || sFrac > 0.88);
+            const sZone = ((stratumIdx % 4) + 4) % 4;
+            const bandVals = [b0, b1, b2, b3];
+            const sEnergy = bandVals[sZone] || 0;
+
+            zone = sZone;
+            if (isSeam) {
+              density = 0.52 + sEnergy * 0.44;
+              peak = sEnergy > 0.58;
+              isSkeleton = true;
+            } else {
+              const layerType = (((stratumIdx + Math.floor(vGen.g3 * 3)) % 3) + 3) % 3;
+              if (layerType === 0) {
+                if (col % 3 === 0) {
+                  density = 0.32 + b0 * 0.38 + sEnergy * 0.24;
+                }
+              } else if (layerType === 1) {
+                if (row % 2 === 0 && ((col + stratumIdx * 2) % 2 === 0)) {
+                  density = 0.26 + b1 * 0.42 + sEnergy * 0.22;
+                }
+              } else {
+                if (Math.abs(sFrac - 0.5) < 0.16 && ((col + stratumIdx) % 4 === 0)) {
+                  density = 0.30 + b2 * 0.46 + b3 * 0.24;
+                  peak = b3 > 0.50;
+                }
+              }
+            }
+          }
+        }
+
+        if (occultEmergence > 0.15) {
+          const fossil = evaluateFossilRibcage(nx, ny - riftCenter, f, vGen);
+          if (fossil.density > 0.05) {
+            density = Math.max(density, fossil.density * occultEmergence);
+            zone = fossil.zone;
+            peak = fossil.peak;
+            isSkeleton = fossil.isSkeleton;
+          }
+        }
+      }
+
+    // V. OBELISK
+    } else if (fIdx === 4) {
+      const idolDrive = spiritsOn
+        ? clamp(0.55 + (b1 + b2) * 0.55, 0.35, 1.0)
+        : (occultEmergence > 0.25 && (vGen.g6 || 0) > 0.35 ? occultEmergence : 0);
+
+      if (idolDrive > 0.15) {
+        const idol = evaluateSpectralFigure(nx, ny, col, row, f, vGen, 1.05, 0, 0.04);
+        density = idol.density * idolDrive;
+        zone = idol.zone;
+        peak = idol.peak;
+        isSkeleton = idol.isSkeleton;
+        occludes = density > 0.35;
+      } else {
+        const forkSplit = (mut > 0.35 && vGen.g1 > 0.52) ? (vGen.g1 - 0.52) * 0.24 * mut : 0;
+        const ax = Math.abs(nx);
+        const topTip = -0.88;
+        const capBase = -0.58 + (vGen.g2 - 0.5) * 0.12 * mut;
+        const plinthTop = 0.72;
+        const plinthBot = 0.86;
+        const capSpan = Math.max(0.05, capBase - topTip);
+        const shaftSpan = Math.max(0.05, plinthTop - capBase);
+
+        if (ny >= topTip && ny <= plinthBot) {
+          if (ny < capBase) {
+            const capW = ((ny - topTip) / capSpan) * (0.14 + b0 * 0.04 + forkSplit);
+            if (ax <= capW && ax >= forkSplit * 0.6) {
+              occludes = true;
+              const isCapEdge = (capW - ax < 0.032) || (capBase - ny < 0.03);
+              zone = 3;
+              density = isCapEdge ? (0.78 + b3 * 0.22) : (0.30 + b3 * 0.48);
+              peak = isCapEdge && b3 > 0.46;
+              isSkeleton = isCapEdge;
+            }
+          } else if (ny <= plinthTop) {
+            const shaftProg = (ny - capBase) / shaftSpan;
+            const geoBulge = Math.sin(shaftProg * PI * (2 + Math.round(vGen.g3 * 3))) * 0.04 * mut;
+            const shaftW = 0.13 + shaftProg * 0.06 + b0 * 0.055 + forkSplit + geoBulge;
+
+            if (ax <= shaftW && ax >= forkSplit) {
+              occludes = true;
+              const isEdge = (shaftW - ax < 0.032) || (forkSplit > 0 && ax - forkSplit < 0.028);
+              const inSpineGroove = (forkSplit === 0 && ax < 0.036);
+
+              if (isEdge) {
+                density = 0.74 + b0 * 0.26;
+                zone = 0;
+                peak = b0 > 0.55;
+                isSkeleton = true;
+              } else if (inSpineGroove) {
+                const pulse = Math.sin(ny * (14 + tess * 12) - p2 * 2.4) * 0.5 + 0.5;
+                if (pulse > (0.68 - b2 * 0.45)) {
+                  density = 0.44 + b2 * 0.54;
+                  zone = 2;
+                  peak = b2 > 0.50;
+                }
+              } else {
+                const bandFreq = 6 + Math.round(tess * 10);
+                const isBand = Math.abs(((shaftProg * bandFreq) % 1) - 0.5) > 0.40;
+                if (isBand) {
+                  density = 0.40 + b1 * 0.46;
+                  zone = 1;
+                } else if (row % 3 === 0) {
+                  density = 0.16 + b0 * 0.18;
+                  zone = 0;
+                }
+              }
+            } else if (ax > shaftW) {
+              const plumb1 = 0.34 + forkSplit * 0.5;
+              const plumb2 = 0.52 + forkSplit * 0.5;
+              const ribCount = 5 + Math.round(tess * 7);
+              const ribPos = shaftProg * ribCount;
+              const isCrossbar = Math.abs((ribPos % 1) - 0.5) > 0.43;
+              const ribIdx = Math.floor(ribPos);
+
+              const barReach = 0.28 + ((ribIdx % 2 === 0) ? 0.18 : 0.08) + b1 * 0.20 + forkSplit * 0.5;
+
+              if (isCrossbar && ax > shaftW + 0.04 && ax < barReach) {
+                density = 0.52 + b1 * 0.44;
+                zone = 1;
+                peak = b1 > 0.58;
+                isSkeleton = true;
+                occludes = true;
+              } else if (Math.abs(ax - plumb1) < 0.015 && ny > capBase + 0.06 && ny < plinthTop - 0.04) {
+                const nodeHit = Math.abs((ribPos % 1) - 0.5) > 0.38;
+                density = nodeHit ? (0.62 + b2 * 0.36) : (0.20 + b2 * 0.25);
+                zone = 2;
+                peak = nodeHit && b2 > 0.56;
+                isSkeleton = nodeHit;
+              } else if (Math.abs(ax - plumb2) < 0.015 && ny > capBase + 0.18 && ny < plinthTop - 0.14) {
+                if (row % 2 === 0 || b3 > 0.22) {
+                  density = 0.18 + b3 * 0.58;
+                  zone = 3;
+                  peak = b3 > 0.54;
+                }
+              }
+            }
+          } else {
+            const plinthW = (ny < plinthTop + 0.07) ? 0.32 + b0 * 0.06 : 0.44 + b0 * 0.08;
+            if (ax <= plinthW) {
+              occludes = true;
+              const isEdge = (plinthW - ax < 0.035) || (ny - plinthTop < 0.03) || (plinthBot - ny < 0.03);
+              density = isEdge ? (0.72 + b0 * 0.28) : (0.26 + b0 * 0.28);
+              zone = 0;
+              peak = isEdge && b0 > 0.58;
+              isSkeleton = isEdge;
+            }
+          }
+        }
+      }
+
+    // VI. VAULT
+    } else if (fIdx === 5) {
+      const engage = clamp(erosion * 0.45 + fracture * 0.55 + tess * 0.25 + mut * 0.55, 0, 1.4);
+      const warpX = Math.sin(p1 * 0.85 + vGen.seed) * 0.24 * engage;
+      const warpY = Math.sin(p2 * 1.15 + vGen.seed * 1.7) * 0.16 * engage;
+
+      const rx = nx - warpX * (1.0 - Math.min(1, Math.hypot(nx, ny)));
+      const ry = ny - warpY * (1.0 - Math.min(1, Math.hypot(nx, ny)));
+
+      const dist0 = Math.hypot(rx, ry);
+      const twistAng = (1.0 - clamp(dist0, 0, 1)) * Math.sin(p1 * 0.6) * 0.42 * engage;
+      const cosT = Math.cos(twistAng);
+      const sinT = Math.sin(twistAng);
+      const tx = rx * cosT - ry * sinT;
+      const ty = rx * sinT + ry * cosT;
+
+      const sx = Math.abs(tx) * 0.78;
+      const sy = Math.abs(ty);
+      const octMetric = (sx + sy) * 0.707;
+      const rectMetric = Math.max(sx, sy);
+      const octBlend = clamp(mut * vGen.g1, 0, 0.85);
+      const cheb = Math.max(0.02, rectMetric * (1.0 - octBlend) + octMetric * octBlend);
+
+      const coreVoid = Math.max(0.06, 0.14 - b0 * 0.03);
+      if (cheb >= coreVoid && cheb <= 0.98) {
+        const archDensity = 2.6 + tess * 3.8;
+        const travel = (p0 * 0.45 + p2 * 0.35) * (0.7 + engage * 1.2) + b0 * 0.55;
+        const depth = Math.log(cheb) * archDensity + travel;
+        const archIdx = Math.floor(depth);
+        const archFrac = ((depth % 1) + 1) % 1;
+
+        const crackTooth = engage > 0.2 ? Math.sin((tx + ty) * 28.0 + archIdx * 3.1) * 0.07 * engage : 0;
+        const ribThickness = 0.24 + b0 * 0.12 + crackTooth;
+        const isArchRib = (archFrac < ribThickness);
+        const isMiter = Math.abs(sx - sy) < (0.028 + engage * 0.015);
+
+        const onCeilingFloor = (sy > sx + 0.03);
+        const onSideWalls = (sx > sy + 0.03);
+        const strutStep = 5 + Math.round(tess * 6);
+        const isCofferStrut =
+          (onCeilingFloor && (Math.abs((tx * strutStep) % 1) < 0.14)) ||
+          (onSideWalls && (Math.abs((ty * strutStep) % 1) < 0.14));
+
+        const depthVis = clamp((cheb - coreVoid) / 0.55, 0.34, 1.0);
+        const aZone = ((archIdx % 4) + 4) % 4;
+        const bandVals = [b0, b1, b2, b3];
+        const aEnergy = bandVals[aZone] || 0;
+
+        if (isArchRib) {
+          density = (0.56 + aEnergy * 0.44) * depthVis;
+          zone = aZone;
+          peak = (archFrac < 0.09) && (aEnergy > 0.50 || b0 > 0.56);
+          isSkeleton = true;
+          occludes = true;
+        } else if (isMiter) {
+          density = (0.48 + b3 * 0.46) * depthVis;
+          zone = 3;
+          peak = b3 > 0.50;
+          isSkeleton = true;
+          occludes = true;
+        } else if (isCofferStrut && (archFrac > 0.45 && archFrac < 0.68)) {
+          density = (0.28 + b1 * 0.36 + b2 * 0.26) * depthVis;
+          zone = onCeilingFloor ? 2 : 1;
+        }
+      } else if (cheb < coreVoid && occultEmergence > 0.18) {
+        const watcher = evaluateSpectralFigure(tx, ty, col, row, f, vGen, 0.42, 0, 0.04);
+        if (watcher.density > 0.05) {
+          density = watcher.density * occultEmergence;
+          zone = watcher.zone;
+          peak = watcher.peak;
+        }
+      }
+
+    // VII. CITADEL
+    } else if (fIdx === 6) {
+      const safeAspect = Math.max(0.5, cols / Math.max(1, rows));
+      const maxW = safeAspect * 0.88;
+      if (Math.abs(nx) <= maxW && ny >= -0.88 && ny <= 0.86) {
+        const towerGrid = 7.0 + tess * 9.0 + Math.round(vGen.g1 * 5 * mut);
+        const tx = (nx + vGen.seed * 0.35) * towerGrid;
+        const towerId = Math.floor(tx);
+        const tFrac = ((tx % 1) + 1) % 1;
+        const tHash = hash2(towerId, Math.floor(vGen.seed * 17));
+
+        const distCenter = Math.abs(nx + (vGen.g2 - 0.5) * 0.35 * mut);
+        const skylineArch = Math.cos(clamp(distCenter / Math.max(0.1, maxW), 0, 1) * PI * 0.5);
+        const roofY = 0.18 - skylineArch * (0.68 + b0 * 0.14) - (tHash * 0.30) + Math.sin(towerId * 2.1 + p1 * 0.4) * 0.03;
+
+        if (ny >= roofY) {
+          occludes = true;
+          const isSpireTip = (ny < roofY + 0.12) && Math.abs(tFrac - 0.5) < (0.12 + (ny - roofY) * 2.5);
+          const isTowerWall = (tFrac < 0.12 || tFrac > 0.88);
+          const isBattlement = (ny >= roofY && ny < roofY + 0.05) && (Math.floor(tFrac * 4) % 2 === 0);
+          const isArcadeRow = Math.abs((((ny * (10 + tess * 10)) % 1) + 1) % 1 - 0.5) > 0.38;
+          const isLancetWindow = !isTowerWall && isArcadeRow && (Math.abs(tFrac - 0.5) < 0.18);
+
+          if (isSpireTip) {
+            density = 0.82 + b3 * 0.18;
+            zone = 3;
+            peak = b3 > 0.46;
+            isSkeleton = true;
+          } else if (isBattlement || isTowerWall) {
+            density = 0.62 + b0 * 0.34;
+            zone = 0;
+            peak = b0 > 0.58;
+            isSkeleton = isBattlement;
+          } else if (isLancetWindow) {
+            density = 0.48 + b2 * 0.50;
+            zone = 2;
+            peak = b2 > 0.52;
+          } else if (isArcadeRow) {
+            density = 0.34 + b1 * 0.42;
+            zone = 1;
+          } else if ((col + row) % 3 === 0) {
+            density = 0.16 + b0 * 0.18;
+            zone = 0;
+          }
+        } else if (tHash > 0.72 && Math.abs(tFrac - 0.5) < 0.08 && ny > roofY - 0.14) {
+          density = 0.55 + b3 * 0.45;
+          zone = 3;
+          peak = b3 > 0.44;
+        }
+
+        if (occultEmergence > 0.18 && ny < 0.15) {
+          const gargoyle = evaluatePareidoliaMask(nx * 1.15, (ny + 0.32) * 1.15, col, row, f, vGen);
+          if (gargoyle.density > density) {
+            density = gargoyle.density * occultEmergence;
+            zone = gargoyle.zone;
+            peak = gargoyle.peak;
+            isSkeleton = gargoyle.isSkeleton;
+          }
+        }
+      }
+
+    // VIII. HORIZON
+    } else if (fIdx === 7) {
+      const shiftX = (vGen.g1 - 0.5) * 0.20 * mut;
+      const shiftY = (vGen.g2 - 0.5) * 0.12 * mut;
+      const r = Math.hypot(nx - shiftX, ny - shiftY);
+      const eclipseR = 0.32 + b0 * 0.07 + vGen.g3 * 0.08 * mut;
+
+      if (r >= eclipseR && r <= 0.94) {
+        const dRim = r - eclipseR;
+        const coronaBand = Math.exp(-dRim * (5.5 - b0 * 2.0));
+        const waveRing = Math.sin(r * (18.0 + tess * 24.0) - p2 * 1.4 + vGen.seed);
+        const azim = Math.atan2(ny - shiftY, nx - shiftX);
+        const rays = Math.cos(azim * (6 + Math.round(tess * 10 + vGen.g4 * 6)) + p3 * 0.35);
+
+        if (dRim < 0.045) {
+          density = 0.86 + b0 * 0.14;
+          zone = 3;
+          peak = true;
+          isSkeleton = true;
+          occludes = true;
+        } else if (waveRing > (0.35 - coronaBand * 0.55 - b2 * 0.30)) {
+          density = clamp(0.24 + coronaBand * 0.55 + b1 * 0.25 + b2 * 0.25, 0, 1);
+          zone = coronaBand > 0.45 ? 1 : 2;
+          peak = (coronaBand > 0.65 && b2 > 0.48);
+          isSkeleton = coronaBand > 0.78;
+          occludes = coronaBand > 0.42;
+        } else if (rays > 0.78 && r < 0.75) {
+          density = 0.20 + b3 * 0.45;
+          zone = 3;
+        }
+      } else if (r < eclipseR) {
+        const spiritDrive = spiritsOn
+          ? clamp(0.55 + (b1 + b2) * 0.55 - b0 * 0.25, 0.35, 1.0)
+          : occultEmergence;
+        if (spiritDrive > 0.08) {
+          const bust = evaluateSpectralFigure(nx, ny, col, row, f, vGen, 0.72, shiftX, shiftY + 0.10);
+          if (bust.density > 0.04) {
+            density = bust.density * spiritDrive;
+            zone = bust.zone;
+            peak = bust.peak;
+            isSkeleton = bust.isSkeleton;
+          }
+        }
+      }
+
+    // IX. RELIC
+    } else if (fIdx === 8) {
+      if (state.relicLoaded && relicLumaBuf.length === cols * rows && col >= 0 && col < cols && row >= 0 && row < rows) {
+        const idx = row * cols + col;
+        const luma = relicLumaBuf[idx];
+        const edge = relicEdgeBuf[idx];
+
+        const contrastBoost = 0.88 + b0 * 0.35 + b1 * 0.25;
+        const effLuma = clamp((luma - 0.10) * contrastBoost + edge * (0.38 + b2 * 0.55), 0, 1);
+
+        if (effLuma > 0.06) {
+          density = effLuma;
+          occludes = effLuma > 0.38;
+          isSkeleton = edge > 0.28;
+
+          if (edge > 0.32) {
+            zone = 3;
+            peak = (b3 > 0.38 || b0 > 0.52);
+          } else if (luma > 0.68) {
+            zone = 2;
+            peak = (b2 > 0.48 && luma > 0.84);
+          } else if (luma > 0.38) {
+            zone = 1;
+            peak = (b1 > 0.55);
+          } else {
+            zone = 0;
+            peak = (b0 > 0.60);
+          }
+        }
+      } else {
+        const mask = evaluatePareidoliaMask(nx, ny, col, row, f, vGen);
+        density = mask.density;
+        zone = mask.zone;
+        peak = mask.peak;
+        isSkeleton = mask.isSkeleton;
+        occludes = mask.density > 0.35;
+      }
+    }
+
+    if (spiritsOn && density < 0.14 && fIdx !== 0 && fIdx !== 4 && fIdx !== 7) {
+      const entity = evaluateEngineSpiritEntity(fIdx, nx, ny, f, vGen);
+      if (entity.density > 0.08) {
+        density = entity.density;
+        zone = entity.zone;
+        peak = entity.peak;
+      }
+    }
+
+    return {
+      density: clamp(density, 0, 1),
+      zone: ((zone % 4) + 4) % 4,
+      peak: !!peak,
+      isSkeleton: !!isSkeleton,
+      occludes: !!occludes
+    };
+  }
+
+  /* ===========================================================================
+     05. COMPOSITE MORPH & WEATHERING EVALUATOR
+     =========================================================================== */
+  function computeFormationCell(fCtx, nx, ny, col, row, wakeScar) {
+    const {
+      fIdx, morphAlpha,
+      variantA, variantB,
+      dissolveThreshold, dissolveAngle, dissolveMode,
+      p1, seed, b0, b1, b2,
+      erosion
+    } = fCtx;
+
+    const resA = evaluateSingleFormation(fIdx, nx, ny, col, row, fCtx, variantA);
+    let density = resA.density;
+    let zone = resA.zone;
+    let peak = resA.peak;
+    let isSkeleton = resA.isSkeleton;
+    let occludes = resA.occludes;
+
+    if (morphAlpha > 0.01) {
+      const resB = evaluateSingleFormation(fIdx, nx, ny, col, row, fCtx, variantB);
+      const weave = Math.sin((nx * 6.0 + ny * 6.0) + p1 * 2.0) * 0.14;
+      const wB = clamp(morphAlpha + weave * Math.sin(morphAlpha * PI), 0, 1);
+      density = resA.density * (1.0 - wB) + resB.density * wB;
+      zone = wB > 0.5 ? resB.zone : resA.zone;
+      peak = wB > 0.5 ? resB.peak : resA.peak;
+      isSkeleton = wB > 0.5 ? resB.isSkeleton : resA.isSkeleton;
+      occludes = wB > 0.5 ? resB.occludes : resA.occludes;
+    }
+
+    let dissolvedToParticle = false;
+    const effDissolve = clamp(dissolveThreshold * 0.72, 0, 0.85);
+    if (density > 0.04 && effDissolve > 0.02) {
+      let sweepFront = 0.5;
+      const edgeNoise = (hash2(col * 0.37 + seed, row * 0.41 - seed) - 0.5) * 0.32;
+
+      if (dissolveMode === 0) {
+        const dirX = Math.cos(dissolveAngle);
+        const dirY = Math.sin(dissolveAngle);
+        sweepFront = (nx * dirX + ny * dirY) * 0.62 + 0.5 + edgeNoise;
+      } else if (dissolveMode === 1) {
+        const r = Math.hypot(nx, ny);
+        sweepFront = (dissolveAngle > PI ? (1.0 - r) : r) * 1.15 + edgeNoise;
+      } else if (dissolveMode === 2) {
+        const pA = Math.sin(nx * 5.2 + seed) * Math.cos(ny * 5.2 - seed);
+        const pB = Math.sin((nx - ny) * 9.0 + seed * 1.7);
+        sweepFront = (pA * 0.35 + pB * 0.25 + 0.5) + edgeNoise * 0.7;
+      } else {
+        const dir = (row % 2 === 0) ? 1 : -1;
+        sweepFront = (nx * dir) * 0.62 + 0.5 + edgeNoise;
+      }
+
+      if (sweepFront < effDissolve) {
+        dissolvedToParticle = true;
+        if (isSkeleton || ((row + col) % 2 === 0 && hash2(col * 0.29, row * 0.71) < 0.55)) {
+          density = Math.max(0.14, density * 0.36);
+          zone = 2;
+          peak = false;
+        } else {
+          density = 0;
+          peak = false;
+          occludes = false;
+        }
+      } else if (sweepFront < effDissolve + 0.11) {
+        density = clamp(density + 0.32 + (b0 + b2) * 0.25, 0, 1);
+        zone = 3;
+        peak = true;
+      }
+    }
+
+    const totalWear = clamp(erosion * 0.75 + wakeScar * 0.55, 0, 0.95);
+    if (density > 0 && totalWear > 0.005) {
+      const nPit = hash2(col * 0.91 + seed * 3.1, row * 0.91 - seed * 2.3);
+      const effectiveWear = isSkeleton ? totalWear * 0.25 : totalWear * 0.65;
+      const pitChance = effectiveWear * (0.78 - density * 0.28);
+
+      if (nPit < pitChance) {
+        if (isSkeleton || nPit > pitChance * 0.24) {
+          density = Math.max(isSkeleton ? 0.32 : 0.12, density * (0.35 + 0.30 * (1.0 - clamp(effectiveWear, 0, 1))));
+          peak = isSkeleton && (b0 > 0.48 || b1 > 0.48);
+        } else {
+          density = 0;
+          peak = false;
+          occludes = false;
+        }
+      } else if (wakeScar > 0.38) {
+        zone = 3;
+      }
+    }
+
+    if (density > 0.15 && isSkeleton && (b0 > 0.48 || b2 > 0.48)) {
+      density = clamp(density + 0.26, 0, 1);
+      peak = true;
+    }
+
+    return {
+      density: clamp(density, 0, 1),
+      zone: ((zone % 4) + 4) % 4,
+      peak,
+      occludes,
+      dissolvedToParticle
+    };
+  }
+
+  /* ===========================================================================
+     06. APPLICATION STATE & PARTICLE SYSTEM
+     =========================================================================== */
+  function createVariantGenome(mutAmt) {
+    return {
+      seed: 0.5 + Math.random() * 40.0,
+      g1: Math.random(),
+      g2: Math.random(),
+      g3: Math.random(),
+      g4: Math.random(),
+      g5: Math.random(),
+      g6: Math.random(),
+      mutAmt: clamp(mutAmt, 0, 1)
+    };
+  }
+
+  const ASPECT_MODES = ['FULL', '9:16', '16:9'];
+
+  const state = {
+    params: {
+      gain: 0.50,
+      erosion: 0.00,
+      tessellation: 0.50,
+      fracture: 0.00,
+      grow: 0.00,
+      prlx: 0.25
+    },
+
+    formationIdx: 0,
+    morphAlpha: 0.0,
+    morphCyclePhase: 0.0,
+    variantA: createVariantGenome(0.0),
+    variantB: createVariantGenome(0.45),
+
+    dissolveAngle: Math.random() * TAU,
+    dissolveMode: 0,
+
+    vizScopeMode: false,
+    artfxActive: false,
+    spiritsActive: false,
+    density2x: false,
+    aspectModeIdx: 0,
+
+    relicLoaded: false,
+    relicImageObj: null,
+    relicName: '',
+
+    lexiconIdx: 0,
+    paletteIdx: 0,
+
+    rawGlyphs: [],
+    mutedFlags: [],
+    activeGlyphs: [],
+
+    activated: false,
+    sourceMode: 'none',
+    monitorOn: true,
+    driftActive: false,
+    frozen: false,
+    hudVisible: true,
+    atelierOpen: true,
+    scopeMode: 0,
+
+    lanesActive: [false, false, false, false],
+
+    micDevicesList: [{ deviceId: '', label: 'DEFAULT AUDIO INPUT' }],
+    micDeviceIdx: 0,
+    selectedMicId: '',
+
+    fileLoaded: false,
+    fileUrl: null,
+    wasPlayingBeforeSuspend: false,
+    isScrubbing: false,
+
+    idlePresence: 0.0,
+    prevIdlePresence: 0.0,
+    idleDuration: 0,
+
+    bandPhases: [0, 0, 0, 0],
+    bassSidechain: 0.0,
+
+    morphTime: 0,
+    morphSeed: 1.0,
+    frozenTime: 0,
+    frozenSeed: 1.0,
+    frozenBands: [0, 0, 0, 0],
+
+    bands: [
+      { env: 0, slowEnv: 0, prevEnv: 0, prevAbove: false, lastFire: 0 },
+      { env: 0, slowEnv: 0, prevEnv: 0, prevAbove: false, lastFire: 0 },
+      { env: 0, slowEnv: 0, prevEnv: 0, prevAbove: false, lastFire: 0 },
+      { env: 0, slowEnv: 0, prevEnv: 0, prevAbove: false, lastFire: 0 }
+    ],
+
+    gates: {
+      shear: { env: 0, start: 0, dur: 75, seed: 1 },
+      drop:  { env: 0, start: 0, dur: 65, seed: 1 },
+      lightning: { env: 0, start: 0, dur: 150, angle: 0.3, offset: 0.0, lastFlash: 0 }
+    },
+
+    shockwaves: [],
+    calvedChunks: [],
+    windAngle: -0.35,
+    windGust: 0.0,
+
+    seismoHistory: new Array(156).fill(0)
+  };
+
+  const PARTICLE_COUNT = 220;
+  const dustParticles = [];
+
+  function spawnParticleOnFormation(p, fIdx, aspect, seed, resetLife) {
+    const r1 = Math.random();
+    const r2 = Math.random();
+    const sign = Math.random() < 0.5 ? -1 : 1;
+
+    if (fIdx === 0 || fIdx === 4) {
+      p.nx = sign * (0.18 + r1 * 0.42);
+      p.ny = -0.30 + r2 * 1.15;
+      p.vx = sign * (0.02 + Math.random() * 0.06);
+      p.vy = -0.16 - Math.random() * 0.28;
+    } else if (fIdx === 1 || fIdx === 7) {
+      const ang = r1 * TAU;
+      const rad = (fIdx === 1 ? 0.68 : 0.34) + (r2 - 0.5) * 0.14;
+      p.nx = Math.cos(ang) * rad;
+      p.ny = Math.sin(ang) * rad;
+      p.vx = -Math.sin(ang) * 0.28 + Math.cos(ang) * 0.08;
+      p.vy = Math.cos(ang) * 0.28 + Math.sin(ang) * 0.08;
+    } else if (fIdx === 2 || fIdx === 6 || fIdx === 8) {
+      const gridCols = 12;
+      const colSlot = (Math.floor(r1 * gridCols) - gridCols * 0.5 + 0.5) / (gridCols * 0.5);
+      p.nx = colSlot * aspect * 0.78;
+      p.ny = -0.85 + r2 * 1.65;
+      p.vx = 0;
+      p.vy = 0.18 + Math.random() * 0.28;
+    } else {
+      p.nx = (r1 * 2 - 1) * aspect * 0.85;
+      p.ny = (fIdx === 3)
+        ? Math.sin(p.nx * 2.8 + seed) * 0.11 + (r2 - 0.5) * 0.08
+        : (r2 - 0.5) * 0.36;
+      p.vx = sign * (0.24 + Math.random() * 0.34);
+      p.vy = (Math.random() - 0.5) * 0.08;
+    }
+
+    p.phase = Math.random() * TAU;
+    p.weight = 0.15 + Math.random() * 0.85;
+    p.zDepth = 0.45 + Math.pow(Math.random(), 1.3) * 0.95;
+    p.maxLife = 1.0 + Math.random() * 1.9;
+    p.life = resetLife ? Math.random() * p.maxLife : p.maxLife;
+  }
+
+  function emitEngineDustPattern(strength, fIdx, aspect, seed) {
+    if (!state.lanesActive[1]) return;
+    const count = 12 + Math.floor(strength * 16);
+    const baseSpeed = 0.75 + strength * 1.75;
+
+    for (let k = 0; k < count; k++) {
+      const p = dustParticles[Math.floor(Math.random() * dustParticles.length)];
+      if (!p) continue;
+      const u = k / Math.max(1, count);
+      const sign = (k % 2 === 0) ? 1 : -1;
+
+      if (fIdx === 0 || fIdx === 4) {
+        p.nx = sign * (0.24 + Math.random() * 0.28);
+        p.ny = 0.65 - u * 1.2;
+        p.vx = sign * (0.12 + Math.random() * 0.25);
+        p.vy = -baseSpeed * (0.8 + Math.random() * 0.6);
+      } else if (fIdx === 1 || fIdx === 7) {
+        const ang = u * TAU + seed;
+        const rad = fIdx === 1 ? 0.72 : 0.34;
+        p.nx = Math.cos(ang) * rad;
+        p.ny = Math.sin(ang) * rad;
+        p.vx = (-Math.sin(ang) * 0.8 + Math.cos(ang) * 0.6) * baseSpeed;
+        p.vy = (Math.cos(ang) * 0.8 + Math.sin(ang) * 0.6) * baseSpeed;
+      } else if (fIdx === 2 || fIdx === 6 || fIdx === 8) {
+        p.nx = ((u * 2 - 1) * aspect * 0.78);
+        p.ny = -0.78 + (Math.random() - 0.5) * 0.16;
+        p.vx = 0;
+        p.vy = baseSpeed * (0.85 + Math.random() * 0.5);
+      } else {
+        p.nx = -sign * aspect * 0.65;
+        p.ny = (u * 2 - 1) * 0.55;
+        p.vx = sign * baseSpeed * 1.35;
+        p.vy = (Math.random() - 0.5) * 0.14;
+      }
+
+      p.zDepth = 1.05 + Math.random() * 0.35;
+      p.weight = 0.78 + Math.random() * 0.22;
+      p.life = 0.55 + Math.random() * 0.50;
+      p.maxLife = p.life;
+    }
+  }
+
+  function initDustParticles() {
+    dustParticles.length = 0;
+    const aspect = Math.max(0.5, cols / Math.max(1, rows));
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      const p = { nx: 0, ny: 0, vx: 0, vy: 0, phase: 0, weight: 0.5, zDepth: 1.0, life: 1, maxLife: 2 };
+      spawnParticleOnFormation(p, state.formationIdx, aspect, state.morphSeed, true);
+      dustParticles.push(p);
+    }
+  }
+
+  function gainDialToMult(val) {
+    return Math.pow(4, clamp(val, 0, 1) * 2 - 1);
+  }
+
+  function toMonoChar(ch) {
+    if (!ch || ch === ' ') return ' ';
+    const cp = ch.codePointAt(0);
+    if (cp > 0x7F && !ch.includes('\uFE0E')) {
+      return ch + '\uFE0E';
+    }
+    return ch;
+  }
+
+  function formatTime(sec) {
+    if (!Number.isFinite(sec) || sec < 0) return '00:00';
+    const s = Math.floor(sec);
+    return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  }
+
+  /* ===========================================================================
+     07. DOM REFERENCES
+     =========================================================================== */
+  const visCanvas = document.getElementById('visualiser-canvas');
+  const ctx = visCanvas.getContext('2d', { alpha: false });
+  const scopeCanvas = document.getElementById('scope');
+  const scopeCtx = scopeCanvas.getContext('2d');
+
+  const dom = {
+    chassisDock: document.getElementById('chassis-dock'),
+    atelierShelf: document.getElementById('atelier-shelf'),
+    cornerToggle: document.getElementById('corner-toggle'),
+    toast: document.getElementById('qm-toast'),
+    dropOverlay: document.getElementById('drop-overlay'),
+
+    btnVizScope: document.getElementById('btn-viz-scope'),
+    btnActivate: document.getElementById('btn-activate'),
+    btnScatter: document.getElementById('btn-scatter'),
+    btnDrift: document.getElementById('btn-drift'),
+    btnFreeze: document.getElementById('btn-freeze'),
+    btnCast: document.getElementById('btn-cast'),
+
+    btnMic: document.getElementById('btn-mic'),
+    btnFile: document.getElementById('btn-file'),
+    btnMon: document.getElementById('btn-mon'),
+    fileUpload: document.getElementById('file-upload'),
+    btnMicPrev: document.getElementById('btn-mic-prev'),
+    btnMicNext: document.getElementById('btn-mic-next'),
+    micDeviceLabel: document.getElementById('mic-device-label'),
+    fileNameDisplay: document.getElementById('file-name-display'),
+    btnPlayPause: document.getElementById('btn-play-pause'),
+    asciiScrub: document.getElementById('ascii-scrub'),
+    fileTimecode: document.getElementById('file-timecode'),
+    audioPlayer: document.getElementById('audio-player'),
+
+    hdrDials: document.getElementById('hdr-dials'),
+    meters: [
+      document.getElementById('meter-0'),
+      document.getElementById('meter-1'),
+      document.getElementById('meter-2'),
+      document.getElementById('meter-3')
+    ],
+    mrows: [
+      document.getElementById('mrow-0'),
+      document.getElementById('mrow-1'),
+      document.getElementById('mrow-2'),
+      document.getElementById('mrow-3')
+    ],
+    laneBtns: [
+      document.getElementById('lane-btn-0'),
+      document.getElementById('lane-btn-1'),
+      document.getElementById('lane-btn-2'),
+      document.getElementById('lane-btn-3')
+    ],
+
+    btnArtfx: document.getElementById('btn-artfx'),
+    btnSpirits: document.getElementById('btn-spirits'),
+    btnDensity: document.getElementById('btn-density'),
+    btnAspect: document.getElementById('btn-aspect'),
+    btnAtelier: document.getElementById('btn-atelier'),
+    btnFullscreen: document.getElementById('btn-fullscreen'),
+    btnHide: document.getElementById('btn-hide'),
+
+    formationButtons: document.getElementById('formation-buttons'),
+    formationSubtitle: document.getElementById('formation-subtitle'),
+    symbolSetButtons: document.getElementById('symbol-set-buttons'),
+    glyphStrip: document.getElementById('glyph-strip'),
+    customGlyphInput: document.getElementById('custom-glyph-input'),
+    btnCustomSet: document.getElementById('btn-custom-set'),
+    btnCustomRst: document.getElementById('btn-custom-rst'),
+    paletteButtons: document.getElementById('palette-buttons')
+  };
+
+  let toastTimer = null;
+  function showToast(text) {
+    dom.toast.textContent = text;
+    dom.toast.classList.add('visible');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      dom.toast.classList.remove('visible');
+    }, 1500);
+  }
+
+  /* ===========================================================================
+     08. OFFSCREEN GLYPH ATLAS, RELIC BUFFER & SNAPSHOT EXPORT
+     =========================================================================== */
+  const atlasCanvas = document.createElement('canvas');
+  const atlasCtx = atlasCanvas.getContext('2d');
+
+  const relicSampleCanvas = document.createElement('canvas');
+  const relicSampleCtx = relicSampleCanvas.getContext('2d', { willReadFrequently: true });
+
+  let dpr = Math.min(window.devicePixelRatio || 1, 2);
+  let cellCss = 16;
+  let cellPx = 16;
+  let cols = 0;
+  let rows = 0;
+
+  let wakeGrid = new Float32Array(1);
+  let occlusionMask = new Uint8Array(1);
+  let z1DensityBuf = new Float32Array(1);
+  let z1ZoneBuf = new Uint8Array(1);
+  let z1PeakBuf = new Uint8Array(1);
+
+  let relicLumaBuf = new Float32Array(1);
+  let relicEdgeBuf = new Float32Array(1);
+
+  function rebuildRelicBuffers() {
+    if (!state.relicLoaded || !state.relicImageObj || cols <= 0 || rows <= 0) return;
+    relicSampleCanvas.width = cols;
+    relicSampleCanvas.height = rows;
+
+    const img = state.relicImageObj;
+    const imgW = img.naturalWidth || img.width || cols;
+    const imgH = img.naturalHeight || img.height || rows;
+    const imgAspect = imgW / Math.max(1, imgH);
+    const gridAspect = cols / Math.max(1, rows);
+
+    relicSampleCtx.fillStyle = '#000000';
+    relicSampleCtx.fillRect(0, 0, cols, rows);
+
+    let drawW = cols * 0.84;
+    let drawH = rows * 0.84;
+    if (imgAspect > gridAspect) {
+      drawH = drawW / imgAspect;
+    } else {
+      drawW = drawH * imgAspect;
+    }
+    const drawX = (cols - drawW) * 0.5;
+    const drawY = (rows - drawH) * 0.5;
+
+    relicSampleCtx.drawImage(img, drawX, drawY, drawW, drawH);
+    const imgData = relicSampleCtx.getImageData(0, 0, cols, rows).data;
+
+    const total = cols * rows;
+    if (relicLumaBuf.length !== total) {
+      relicLumaBuf = new Float32Array(total);
+      relicEdgeBuf = new Float32Array(total);
+    }
+
+    let minL = 1.0;
+    let maxL = 0.0;
+    for (let i = 0; i < total; i++) {
+      const p = i * 4;
+      const luma = (0.299 * imgData[p] + 0.587 * imgData[p + 1] + 0.114 * imgData[p + 2]) / 255.0;
+      relicLumaBuf[i] = luma;
+      if (luma < minL) minL = luma;
+      if (luma > maxL) maxL = luma;
+    }
+    const spanL = Math.max(0.15, maxL - minL);
+    for (let i = 0; i < total; i++) {
+      relicLumaBuf[i] = clamp((relicLumaBuf[i] - minL) / spanL, 0, 1);
+    }
+
+    for (let r = 1; r < rows - 1; r++) {
+      for (let c = 1; c < cols - 1; c++) {
+        const idx = r * cols + c;
+        const tl = relicLumaBuf[idx - cols - 1];
+        const tc = relicLumaBuf[idx - cols];
+        const tr = relicLumaBuf[idx - cols + 1];
+        const ml = relicLumaBuf[idx - 1];
+        const mr = relicLumaBuf[idx + 1];
+        const bl = relicLumaBuf[idx + cols - 1];
+        const bc = relicLumaBuf[idx + cols];
+        const br = relicLumaBuf[idx + cols + 1];
+
+        const gx = -tl - 2 * ml - bl + tr + 2 * mr + br;
+        const gy = -tl - 2 * tc - tr + bl + 2 * bc + br;
+        relicEdgeBuf[idx] = clamp(Math.hypot(gx, gy) * 0.75, 0, 1);
+      }
+    }
+  }
+
+  function loadRelicImageFile(fileObj) {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        state.relicImageObj = img;
+        state.relicLoaded = true;
+        state.relicName = fileObj.name.toUpperCase();
+        rebuildRelicBuffers();
+        selectFormation(8);
+        if (!state.lanesActive[0]) {
+          toggleVisualLane(0, true);
+        }
+        showToast(`IX. RELIC // CAST ${state.relicName.slice(0, 26)} INTO STRATA`);
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(fileObj);
+  }
+
+  function triggerCastSnapshot() {
+    const pal = PALETTES[state.paletteIdx];
+    const fm = FORMATIONS[state.formationIdx];
+    const aspectLabel = ASPECT_MODES[state.aspectModeIdx];
+    const pad = Math.round(28 * dpr);
+    const footerH = Math.round(40 * dpr);
+
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = visCanvas.width + pad * 2;
+    outCanvas.height = visCanvas.height + pad * 2 + footerH;
+    const octx = outCanvas.getContext('2d');
+
+    octx.fillStyle = pal.bg;
+    octx.fillRect(0, 0, outCanvas.width, outCanvas.height);
+
+    octx.drawImage(visCanvas, pad, pad);
+
+    const tintHex = pal.domains[Math.floor(Math.random() * pal.domains.length)];
+    octx.save();
+    octx.globalCompositeOperation = 'screen';
+    octx.globalAlpha = 0.08 + Math.random() * 0.06;
+    octx.fillStyle = tintHex;
+    octx.fillRect(pad, pad, visCanvas.width, visCanvas.height);
+    octx.restore();
+
+    const grad = octx.createRadialGradient(
+      outCanvas.width * 0.5, pad + visCanvas.height * 0.5, visCanvas.height * 0.28,
+      outCanvas.width * 0.5, pad + visCanvas.height * 0.5, Math.max(visCanvas.width, visCanvas.height) * 0.72
+    );
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.42)');
+    octx.fillStyle = grad;
+    octx.fillRect(pad, pad, visCanvas.width, visCanvas.height);
+
+    octx.strokeStyle = pal.rest;
+    octx.lineWidth = Math.max(1, Math.round(1.5 * dpr));
+    octx.strokeRect(pad - 4, pad - 4, visCanvas.width + 8, visCanvas.height + 8);
+
+    const fontPx = Math.max(10, Math.round(10 * dpr));
+    octx.font = `bold ${fontPx}px 'Courier New', Menlo, monospace`;
+    octx.textBaseline = 'middle';
+    const metaY = pad + visCanvas.height + Math.round(footerH * 0.52);
+
+    const p = state.params;
+    const leftStamp = `QM // ${fm.label} [${pal.name}]`;
+    const rightStamp = `${aspectLabel} · E:${p.erosion.toFixed(2)} F:${p.fracture.toFixed(2)} G:${p.grow.toFixed(2)}`;
+
+    octx.fillStyle = pal.highlight;
+    octx.textAlign = 'left';
+    octx.fillText(leftStamp, pad, metaY);
+
+    octx.fillStyle = pal.rest;
+    octx.textAlign = 'right';
+    octx.fillText(rightStamp, outCanvas.width - pad, metaY);
+
+    outCanvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      a.href = url;
+      a.download = `QM_CAST_${fm.label.replace(/[^A-Z0-9]/gi, '_')}_${stamp}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      showToast(`CAST // PLATE ENTOMBED (${fm.label} · ${aspectLabel})`);
+    }, 'image/png');
+  }
+
+  function rebuildGlyphAtlas() {
+    const pal = PALETTES[state.paletteIdx];
+    const ramp = state.activeGlyphs.length > 0 ? state.activeGlyphs : ['·'];
+    cellPx = Math.max(7, Math.round(cellCss * dpr));
+
+    atlasCanvas.width = Math.max(cellPx, ramp.length * cellPx);
+    atlasCanvas.height = 6 * cellPx;
+
+    atlasCtx.clearRect(0, 0, atlasCanvas.width, atlasCanvas.height);
+    atlasCtx.textAlign = 'center';
+    atlasCtx.textBaseline = 'middle';
+    const fontPx = Math.max(7, Math.floor(cellPx * 0.86));
+    atlasCtx.font = `bold ${fontPx}px 'Courier New', Menlo, monospace`;
+
+    const rowColors = [
+      pal.rest,
+      pal.domains[0],
+      pal.domains[1],
+      pal.domains[2],
+      pal.domains[3],
+      pal.highlight
+    ];
+
+    for (let r = 0; r < rowColors.length; r++) {
+      atlasCtx.fillStyle = rowColors[r];
+      const cy = r * cellPx + cellPx * 0.52;
+      for (let i = 0; i < ramp.length; i++) {
+        const ch = toMonoChar(ramp[i]);
+        if (ch === ' ') continue;
+        const cx = i * cellPx + cellPx * 0.5;
+        atlasCtx.fillText(ch, cx, cy);
+      }
+    }
+  }
+
+  function resizeViewport() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const winW = window.innerWidth;
+    const winH = window.innerHeight;
+
+    let stageW = winW;
+    let stageH = winH;
+    const mode = state.aspectModeIdx;
+
+    if (mode === 1) {
+      const targetRatio = 9 / 16;
+      stageH = winH;
+      stageW = Math.min(winW, Math.round(stageH * targetRatio));
+      if (stageW / stageH > targetRatio) {
+        stageH = Math.round(stageW / targetRatio);
+      }
+      visCanvas.classList.add('framed');
+    } else if (mode === 2) {
+      const targetRatio = 16 / 9;
+      if (winW / winH > targetRatio) {
+        stageH = winH;
+        stageW = Math.round(stageH * targetRatio);
+      } else {
+        stageW = winW;
+        stageH = Math.round(stageW / targetRatio);
+      }
+      visCanvas.classList.add('framed');
+    } else {
+      visCanvas.classList.remove('framed');
+    }
+
+    visCanvas.style.width = `${stageW}px`;
+    visCanvas.style.height = `${stageH}px`;
+    visCanvas.width = Math.floor(stageW * dpr);
+    visCanvas.height = Math.floor(stageH * dpr);
+    ctx.imageSmoothingEnabled = false;
+
+    const baseCss = clamp(Math.round(Math.min(winW, winH) / 56), 13, 18);
+    cellCss = state.density2x ? Math.max(7, Math.round(baseCss * 0.52)) : baseCss;
+    rebuildGlyphAtlas();
+
+    const prevCols = cols;
+    cols = Math.max(20, Math.ceil(visCanvas.width / cellPx));
+    rows = Math.max(20, Math.ceil(visCanvas.height / cellPx));
+    const totalCells = cols * rows;
+
+    wakeGrid = new Float32Array(totalCells);
+    occlusionMask = new Uint8Array(totalCells);
+    z1DensityBuf = new Float32Array(totalCells);
+    z1ZoneBuf = new Uint8Array(totalCells);
+    z1PeakBuf = new Uint8Array(totalCells);
+
+    if (state.relicLoaded) {
+      rebuildRelicBuffers();
+    } else {
+      relicLumaBuf = new Float32Array(totalCells);
+      relicEdgeBuf = new Float32Array(totalCells);
+    }
+
+    if (prevCols === 0 || dustParticles.length === 0) {
+      initDustParticles();
+    }
+  }
+
+  /* ===========================================================================
+     09. WEB AUDIO 4-BAND CROSSOVER & INPUT ROUTING
+     =========================================================================== */
+  let audioCtx = null;
+  let inputGain = null;
+  let monitorGain = null;
+  let scopeAnalyser = null;
+  let scopeBytes = null;
+
+  const bandAnalysers = [null, null, null, null];
+  const bandBuffers = [null, null, null, null];
+
+  let micStream = null;
+  let micSourceNode = null;
+  let fileSourceNode = null;
+
+  async function initOrResumeAudio() {
+    try {
+      if (!audioCtx) {
+        const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioCtxClass({ latencyHint: 'interactive' });
+
+        inputGain = audioCtx.createGain();
+        inputGain.gain.value = gainDialToMult(state.params.gain);
+
+        monitorGain = audioCtx.createGain();
+        monitorGain.gain.value = state.monitorOn ? 0.9 : 0.0;
+        monitorGain.connect(audioCtx.destination);
+
+        scopeAnalyser = audioCtx.createAnalyser();
+        scopeAnalyser.fftSize = 512;
+        scopeBytes = new Uint8Array(scopeAnalyser.frequencyBinCount);
+        inputGain.connect(scopeAnalyser);
+
+        const lp1 = audioCtx.createBiquadFilter();
+        lp1.type = 'lowpass'; lp1.frequency.value = 140; lp1.Q.value = 0.707;
+        const lp2 = audioCtx.createBiquadFilter();
+        lp2.type = 'lowpass'; lp2.frequency.value = 140; lp2.Q.value = 0.707;
+        const an0 = audioCtx.createAnalyser(); an0.fftSize = 256;
+        inputGain.connect(lp1); lp1.connect(lp2); lp2.connect(an0);
+        bandAnalysers[0] = an0; bandBuffers[0] = new Float32Array(an0.fftSize);
+
+        const bp1 = audioCtx.createBiquadFilter();
+        bp1.type = 'bandpass'; bp1.frequency.value = 420; bp1.Q.value = 0.85;
+        const an1 = audioCtx.createAnalyser(); an1.fftSize = 256;
+        inputGain.connect(bp1); bp1.connect(an1);
+        bandAnalysers[1] = an1; bandBuffers[1] = new Float32Array(an1.fftSize);
+
+        const bp2 = audioCtx.createBiquadFilter();
+        bp2.type = 'bandpass'; bp2.frequency.value = 1800; bp2.Q.value = 0.85;
+        const an2 = audioCtx.createAnalyser(); an2.fftSize = 256;
+        inputGain.connect(bp2); bp2.connect(an2);
+        bandAnalysers[2] = an2; bandBuffers[2] = new Float32Array(an2.fftSize);
+
+        const hp3 = audioCtx.createBiquadFilter();
+        hp3.type = 'highpass'; hp3.frequency.value = 4200; hp3.Q.value = 0.707;
+        const an3 = audioCtx.createAnalyser(); an3.fftSize = 256;
+        inputGain.connect(hp3); hp3.connect(an3);
+        bandAnalysers[3] = an3; bandBuffers[3] = new Float32Array(an3.fftSize);
+      }
+
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
+      state.activated = true;
+      dom.btnActivate.classList.add('active');
+      return true;
+    } catch (err) {
+      showToast(`AUDIO INIT ERROR: ${err.message}`);
+      return false;
+    }
+  }
+
+  async function toggleActivate() {
+    if (!audioCtx || audioCtx.state === 'suspended') {
+      const ok = await initOrResumeAudio();
+      if (ok) {
+        if (state.sourceMode === 'file' && state.wasPlayingBeforeSuspend && state.fileLoaded) {
+          try { await dom.audioPlayer.play(); updatePlayPauseUI(); } catch (_) {}
+        }
+        showToast('AUDIO ENGINE ACTIVE');
+      }
+    } else if (audioCtx.state === 'running') {
+      state.wasPlayingBeforeSuspend = (state.sourceMode === 'file' && !dom.audioPlayer.paused);
+      if (state.wasPlayingBeforeSuspend) {
+        dom.audioPlayer.pause();
+        updatePlayPauseUI();
+      }
+      await audioCtx.suspend();
+      state.activated = false;
+      dom.btnActivate.classList.remove('active');
+      showToast('AUDIO ENGINE SUSPENDED');
+    }
+  }
+
+  function stopMic() {
+    if (micSourceNode) {
+      try { micSourceNode.disconnect(); } catch (_) {}
+      micSourceNode = null;
+    }
+    if (micStream) {
+      micStream.getTracks().forEach((t) => t.stop());
+      micStream = null;
+    }
+  }
+
+  function updateMonitorUI() {
+    dom.btnMon.classList.remove('active-amber', 'locked-iso', 'active');
+    if (state.sourceMode === 'mic') {
+      dom.btnMon.textContent = 'MON: ISO';
+      dom.btnMon.disabled = true;
+      dom.btnMon.classList.add('locked-iso');
+      dom.btnMon.title = 'Isolated in MIC Mode';
+    } else {
+      dom.btnMon.disabled = false;
+      if (state.monitorOn) {
+        dom.btnMon.textContent = 'MON: ON';
+        dom.btnMon.classList.add('active-amber');
+        dom.btnMon.title = 'Speaker Monitor Active';
+      } else {
+        dom.btnMon.textContent = 'MON: OFF';
+        dom.btnMon.title = 'Speaker Monitor Muted';
+      }
+    }
+
+    if (monitorGain && audioCtx) {
+      const target = (state.sourceMode === 'file' && state.monitorOn) ? 0.9 : 0.0;
+      monitorGain.gain.setTargetAtTime(target, audioCtx.currentTime, 0.015);
+    }
+  }
+
+  function updatePlayPauseUI() {
+    const playing = state.fileLoaded && !dom.audioPlayer.paused;
+    dom.btnPlayPause.innerHTML = playing ? '&#10074;&#10074;' : '&#9654;';
+    dom.btnPlayPause.classList.toggle('active', playing);
+  }
+
+  function renderAsciiScrubBar(ratio) {
+    const cells = 12;
+    const filled = clamp(Math.round(clamp(ratio, 0, 1) * cells), 0, cells);
+    dom.asciiScrub.textContent = `[${'■'.repeat(filled)}${'░'.repeat(cells - filled)}]`;
+    dom.asciiScrub.setAttribute('aria-valuenow', String(Math.round(ratio * 100)));
+  }
+
+  function syncMicCyclerUI() {
+    const list = state.micDevicesList;
+    if (!list || list.length === 0) {
+      dom.micDeviceLabel.textContent = 'DEFAULT AUDIO INPUT';
+      return;
+    }
+    const idx = ((state.micDeviceIdx % list.length) + list.length) % list.length;
+    state.micDeviceIdx = idx;
+    state.selectedMicId = list[idx].deviceId;
+    dom.micDeviceLabel.textContent = list[idx].label;
+  }
+
+  function cycleMicDevice(delta) {
+    const list = state.micDevicesList;
+    if (!list || list.length <= 1) {
+      engageMicInput();
+      return;
+    }
+    state.micDeviceIdx = (state.micDeviceIdx + delta + list.length) % list.length;
+    syncMicCyclerUI();
+    showToast(`INPUT // ${list[state.micDeviceIdx].label}`);
+    if (state.sourceMode === 'mic') {
+      engageMicInput();
+    }
+  }
+
+  async function populateMicDevices() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter((d) => d.kind === 'audioinput');
+      if (inputs.length === 0) {
+        state.micDevicesList = [{ deviceId: '', label: 'NO AUDIO INPUTS' }];
+        state.micDeviceIdx = 0;
+        syncMicCyclerUI();
+        return;
+      }
+
+      state.micDevicesList = inputs.map((dev, idx) => ({
+        deviceId: dev.deviceId,
+        label: (dev.label || `AUDIO INPUT ${idx + 1}`).toUpperCase()
+      }));
+
+      const matchIdx = state.micDevicesList.findIndex((d) => d.deviceId === state.selectedMicId);
+      state.micDeviceIdx = matchIdx >= 0 ? matchIdx : 0;
+      syncMicCyclerUI();
+    } catch (_) {}
+  }
+
+  async function engageMicInput() {
+    const ok = await initOrResumeAudio();
+    if (!ok) return;
+
+    if (!dom.audioPlayer.paused) {
+      dom.audioPlayer.pause();
+      updatePlayPauseUI();
+    }
+    stopMic();
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showToast('MIC INPUT REQUIRES HTTPS OR LOCALHOST');
+      return;
+    }
+
+    try {
+      const constraints = {
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false
+        }
+      };
+      if (state.selectedMicId) {
+        constraints.audio.deviceId = { exact: state.selectedMicId };
+      }
+
+      micStream = await navigator.mediaDevices.getUserMedia(constraints);
+      micSourceNode = audioCtx.createMediaStreamSource(micStream);
+      micSourceNode.connect(inputGain);
+
+      state.sourceMode = 'mic';
+      dom.btnMic.classList.add('active');
+      dom.btnFile.classList.remove('active');
+      updateMonitorUI();
+
+      await populateMicDevices();
+      showToast(`LIVE DI // ${state.micDevicesList[state.micDeviceIdx].label.slice(0, 26)}`);
+    } catch (err) {
+      const msg = err.name === 'NotAllowedError'
+        ? 'MIC PERMISSION DENIED IN BROWSER OR OS'
+        : `MIC ERROR: ${err.name || err.message}`;
+      showToast(msg);
+    }
+  }
+
+  async function loadAudioFile(fileObj) {
+    const ok = await initOrResumeAudio();
+    if (!ok) return;
+
+    stopMic();
+
+    if (fileObj) {
+      if (state.fileUrl) {
+        try { URL.revokeObjectURL(state.fileUrl); } catch (_) {}
+      }
+      state.fileUrl = URL.createObjectURL(fileObj);
+      dom.audioPlayer.src = state.fileUrl;
+      dom.audioPlayer.loop = true;
+
+      const displayName = fileObj.name.toUpperCase();
+      dom.fileNameDisplay.textContent = displayName;
+      dom.fileNameDisplay.title = fileObj.name;
+      dom.fileNameDisplay.classList.remove('empty');
+
+      dom.asciiScrub.classList.remove('disabled');
+      renderAsciiScrubBar(0);
+      dom.fileTimecode.textContent = '00:00/00:00';
+      state.fileLoaded = true;
+    }
+
+    if (!state.fileLoaded) {
+      dom.fileUpload.click();
+      return;
+    }
+
+    try {
+      if (!fileSourceNode) {
+        fileSourceNode = audioCtx.createMediaElementSource(dom.audioPlayer);
+        fileSourceNode.connect(inputGain);
+        fileSourceNode.connect(monitorGain);
+      }
+
+      state.sourceMode = 'file';
+      dom.btnFile.classList.add('active');
+      dom.btnMic.classList.remove('active');
+      updateMonitorUI();
+
+      await dom.audioPlayer.play();
+      updatePlayPauseUI();
+      showToast(`LOADED // ${dom.fileNameDisplay.textContent.slice(0, 32)}`);
+    } catch (err) {
+      showToast(`FILE PLAYBACK ERROR: ${err.message}`);
+    }
+  }
+
+  /* ===========================================================================
+     10. ENVELOPE FOLLOWERS, SIDECHAIN & TRANSIENT GATES
+     =========================================================================== */
+  function advanceMorphCycle(phaseStep) {
+    state.morphCyclePhase += phaseStep;
+    const grow = state.params.grow;
+    if (state.morphCyclePhase >= 1.0) {
+      state.morphCyclePhase -= 1.0;
+      state.variantA = state.variantB;
+      state.variantB = createVariantGenome(clamp(0.30 + grow * 0.70, 0.30, 1.0));
+      state.morphAlpha = 0.0;
+      state.dissolveAngle = Math.random() * TAU;
+      state.dissolveMode = Math.floor(Math.random() * 4);
+    } else {
+      state.morphAlpha = clamp((state.morphCyclePhase - 0.30) / 0.58, 0, 1);
+    }
+  }
+
+  function processAudioAndGates(nowMs, dtSec) {
+    const decayPerSec = [2.6, 4.2, 8.5, 14.0];
+    const slowDecayPerSec = [1.1, 1.6, 2.4, 3.2];
+    const spectralComp = [1.15, 1.65, 2.25, 3.20];
+
+    const hasLiveSource = (state.sourceMode === 'mic') ||
+                          (state.sourceMode === 'file' && state.fileLoaded && !dom.audioPlayer.paused);
+    const audioRunning = audioCtx && audioCtx.state === 'running' && hasLiveSource;
+
+    const anyLaneOn = state.lanesActive[0] || state.lanesActive[1] || state.lanesActive[2] || state.lanesActive[3];
+    const targetIdle = (state.activated && !hasLiveSource && (anyLaneOn || state.vizScopeMode)) ? 1.0 : 0.0;
+
+    state.prevIdlePresence = state.idlePresence;
+    const slewSpeed = targetIdle > state.idlePresence ? 0.85 : 1.35;
+    state.idlePresence += (targetIdle - state.idlePresence) * Math.min(1, dtSec * slewSpeed);
+
+    if (targetIdle > 0.5) {
+      state.idleDuration = (state.idleDuration + dtSec) % 180.0;
+    } else {
+      state.idleDuration = 0;
+    }
+
+    const aspect = Math.max(0.5, cols / Math.max(1, rows));
+    const gainNorm = state.params.gain;
+    const drivePush = clamp(0.65 + gainNorm * 1.15, 0.65, 1.80);
+
+    if (audioRunning) {
+      for (let i = 0; i < 4; i++) {
+        const an = bandAnalysers[i];
+        const buf = bandBuffers[i];
+        const b = state.bands[i];
+        b.prevEnv = b.env;
+        an.getFloatTimeDomainData(buf);
+
+        let peak = 0;
+        for (let s = 0; s < buf.length; s++) {
+          const v = Math.abs(buf[s]);
+          if (v > peak) peak = v;
+        }
+
+        const level = clamp(Math.pow(peak * spectralComp[i], 0.82), 0, 1);
+
+        if (level > b.env) {
+          b.env = level;
+        } else {
+          b.env = Math.max(0, b.env - decayPerSec[i] * dtSec);
+        }
+
+        if (level > b.slowEnv) {
+          b.slowEnv += (level - b.slowEnv) * Math.min(1, dtSec * 5.5);
+        } else {
+          b.slowEnv = Math.max(0, b.slowEnv - slowDecayPerSec[i] * dtSec);
+        }
+      }
+    } else if (state.idlePresence > 0.02) {
+      const tSec = nowMs * 0.001;
+      const idleWaves = [
+        (0.16 + Math.sin(tSec * 0.85) * 0.12) * state.idlePresence,
+        (0.14 + Math.sin(tSec * 1.35 + 1.1) * 0.10) * state.idlePresence,
+        (0.18 + Math.cos(tSec * 2.10 + 0.4) * 0.13) * state.idlePresence,
+        (0.14 + Math.sin(tSec * 0.65 + 2.3) * 0.10) * state.idlePresence
+      ];
+      for (let i = 0; i < 4; i++) {
+        state.bands[i].prevEnv = state.bands[i].env;
+        state.bands[i].env += (idleWaves[i] - state.bands[i].env) * Math.min(1, dtSec * 4.0);
+        state.bands[i].slowEnv = state.bands[i].env * 0.75;
+      }
+    } else {
+      for (let i = 0; i < 4; i++) {
+        state.bands[i].prevEnv = state.bands[i].env;
+        state.bands[i].env = Math.max(0, state.bands[i].env - 3.8 * dtSec);
+        state.bands[i].slowEnv = Math.max(0, state.bands[i].slowEnv - 2.0 * dtSec);
+      }
+    }
+
+    const b0 = state.bands[0].env;
+    const b1 = state.bands[1].env;
+    const b2 = state.bands[2].env;
+    const b3 = state.bands[3].env;
+
+    if (b0 > state.bassSidechain) {
+      state.bassSidechain = b0;
+    } else {
+      state.bassSidechain = Math.max(0, state.bassSidechain - 6.5 * dtSec);
+    }
+    const scDuck = clamp(1.0 - Math.pow(state.bassSidechain, 1.35) * 0.78, 0.22, 1.0);
+
+    if (!state.frozen) {
+      state.bandPhases[0] += dtSec * (0.18 + b0 * 1.15 * drivePush);
+      state.bandPhases[1] += dtSec * (0.28 + b1 * 1.65 * drivePush);
+      state.bandPhases[2] += dtSec * (0.45 + b2 * 2.85 * scDuck * drivePush);
+      state.bandPhases[3] += dtSec * (0.65 + b3 * 4.20 * scDuck * drivePush);
+    }
+
+    const grow = state.params.grow;
+    if (!state.frozen && grow > 0.01) {
+      state.variantB.mutAmt = clamp(0.30 + grow * 0.70, 0.30, 1.0);
+      const slowDriftRate = (0.025 + Math.pow(grow, 2.2) * 0.24) * drivePush;
+      advanceMorphCycle(dtSec * slowDriftRate);
+    } else if (grow <= 0.01) {
+      state.morphCyclePhase = 0.0;
+      state.morphAlpha = 0.0;
+    }
+
+    const b1Band = state.bands[0];
+    const above1 = b1Band.env > 0.52;
+    if (audioRunning && above1 && !b1Band.prevAbove && (nowMs - b1Band.lastFire > 140)) {
+      b1Band.lastFire = nowMs;
+      state.shockwaves.push({
+        r: 0.08,
+        speed: 1.5 + b1Band.env * 2.4,
+        strength: b1Band.env
+      });
+      if (state.shockwaves.length > 5) state.shockwaves.shift();
+
+      if (!state.frozen && grow > 0.35) {
+        const jump = Math.pow((grow - 0.35) / 0.65, 1.3) * (0.28 + b1Band.env * 0.34) * drivePush;
+        advanceMorphCycle(jump);
+      }
+    }
+    b1Band.prevAbove = above1;
+
+    for (let i = state.shockwaves.length - 1; i >= 0; i--) {
+      const sw = state.shockwaves[i];
+      sw.r += sw.speed * dtSec;
+      sw.strength *= Math.pow(0.32, dtSec);
+      if (sw.r > 2.2 || sw.strength < 0.04) {
+        state.shockwaves.splice(i, 1);
+      }
+    }
+
+    const attackSpike = Math.max(0, b1 - state.bands[1].prevEnv) * 2.5 +
+                        Math.max(0, b2 - state.bands[2].prevEnv) * 3.2 * scDuck;
+    const targetGust = clamp((b1 * 0.45 + b2 * 0.75 * scDuck + attackSpike + state.params.erosion * 0.45) * drivePush, 0, 2.2);
+    state.windGust += (targetGust - state.windGust) * Math.min(1, dtSec * 8.5);
+    state.windAngle += Math.sin(nowMs * 0.0007) * 0.35 * dtSec;
+
+    const frac = state.params.fracture;
+    const driveTearBias = Math.max(0, (gainNorm - 0.50) * 0.75);
+    const effFrac = clamp(Math.max(frac, driveTearBias, (grow - 0.50) * 1.1), 0, 1.2);
+
+    if (audioRunning && (effFrac > 0.02 || b2 > 0.18 || b3 > 0.18)) {
+      const deltaThr3 = clamp(0.16 - effFrac * 0.09, 0.04, 0.16);
+      const deltaThr4 = clamp(0.14 - effFrac * 0.08, 0.035, 0.14);
+
+      const band3 = state.bands[2];
+      const delta3 = band3.env - band3.slowEnv;
+      const trig3 = (delta3 > deltaThr3) && (band3.env > 0.12);
+      if (trig3 && !band3.prevAbove && (nowMs - band3.lastFire > 55)) {
+        band3.lastFire = nowMs;
+        const hitStrength = clamp((band3.env + delta3) * scDuck * drivePush, 0.2, 1.4);
+        state.gates.shear.env = clamp(0.45 + hitStrength * 0.55, 0.45, 1.0);
+        state.gates.shear.start = nowMs;
+        state.gates.shear.seed = Math.floor(Math.random() * 9973) + 1;
+        emitEngineDustPattern(hitStrength, state.formationIdx, aspect, state.morphSeed);
+      }
+      band3.prevAbove = trig3;
+
+      const band4 = state.bands[3];
+      const delta4 = band4.env - band4.slowEnv;
+      const trig4 = (delta4 > deltaThr4) && (band4.env > 0.10);
+      if (trig4 && !band4.prevAbove && (nowMs - band4.lastFire > 48)) {
+        band4.lastFire = nowMs;
+        const hatStrength = clamp((band4.env + delta4) * scDuck * drivePush, 0.25, 1.5);
+        state.gates.drop.env = clamp(0.45 + hatStrength * 0.55, 0.45, 1.0);
+        state.gates.drop.start = nowMs;
+        state.gates.drop.seed = Math.floor(Math.random() * 9973) + 1;
+        emitEngineDustPattern(hatStrength, state.formationIdx, aspect, state.morphSeed);
+
+        if (!state.frozen && grow > 0.35 && scDuck > 0.65) {
+          advanceMorphCycle(Math.pow((grow - 0.35) / 0.65, 1.3) * 0.16 * hatStrength);
+        }
+
+        if (state.lanesActive[0] && effFrac > 0.22 && state.calvedChunks.length < 16) {
+          const sign = Math.random() < 0.5 ? -1 : 1;
+          state.calvedChunks.push({
+            nx: sign * (0.12 + Math.random() * 0.35),
+            ny: -0.45 + Math.random() * 0.75,
+            vx: sign * (0.24 + Math.random() * 0.42) + Math.cos(state.windAngle) * 0.30,
+            vy: 0.28 + Math.random() * 0.50,
+            size: 2 + Math.floor(Math.random() * 2),
+            life: 1.2
+          });
+        }
+
+        if ((effFrac > 0.28 || state.artfxActive) && hatStrength > 0.42 && (nowMs - state.gates.lightning.lastFlash > 190) && Math.random() < Math.max(effFrac, 0.55) * 0.72) {
+          state.gates.lightning.env = 1.0;
+          state.gates.lightning.start = nowMs;
+          state.gates.lightning.lastFlash = nowMs;
+          state.gates.lightning.angle = (Math.random() - 0.5) * 1.1;
+          state.gates.lightning.offset = (Math.random() - 0.5) * 0.9;
+        }
+      }
+      band4.prevAbove = trig4;
+    } else {
+      state.bands[2].prevAbove = false;
+      state.bands[3].prevAbove = false;
+    }
+
+    const gateKeys = ['shear', 'drop', 'lightning'];
+    for (let k = 0; k < gateKeys.length; k++) {
+      const g = state.gates[gateKeys[k]];
+      if (g.env > 0) {
+        const elapsed = nowMs - g.start;
+        g.env = elapsed >= g.dur ? 0 : (1.0 - elapsed / g.dur);
+      }
+    }
+  }
+
+  /* ===========================================================================
+     11. FULL-SCREEN SCOPE OVERRIDE ([V] MODE)
+     =========================================================================== */
+  function renderAsciiScopeOverride(t, b0, b1, b2, b3, gateShear) {
+    const pal = PALETTES[state.paletteIdx];
+    const rampLen = Math.max(1, state.activeGlyphs.length);
+    const maxGlyphIdx = rampLen - 1;
+
+    ctx.fillStyle = pal.bg;
+    ctx.fillRect(0, 0, visCanvas.width, visCanvas.height);
+
+    const cx = (cols - 1) * 0.5;
+    const cy = (rows - 1) * 0.5;
+    const erosion = state.params.erosion;
+    const tess = state.params.tessellation;
+
+    const spineIdx = maxGlyphIdx;
+    const echoIdx = Math.min(Math.max(1, Math.floor(maxGlyphIdx * 0.45)), maxGlyphIdx);
+    const gratIdx = 0;
+
+    const midR = Math.round(cy);
+    const midC = Math.round(cx);
+    for (let c = 2; c < cols - 2; c += 3) {
+      ctx.drawImage(atlasCanvas, gratIdx * cellPx, 0, cellPx, cellPx, c * cellPx, midR * cellPx, cellPx, cellPx);
+    }
+    for (let r = 2; r < rows - 2; r += 3) {
+      ctx.drawImage(atlasCanvas, gratIdx * cellPx, 0, cellPx, cellPx, midC * cellPx, r * cellPx, cellPx, cellPx);
+    }
+
+    const active = scopeAnalyser && audioCtx && audioCtx.state === 'running' &&
+      (state.sourceMode === 'mic' || (state.sourceMode === 'file' && !dom.audioPlayer.paused));
+
+    if (active) {
+      scopeAnalyser.getByteTimeDomainData(scopeBytes);
+    }
+
+    if (state.scopeMode === 0) {
+      const stepQuant = Math.max(1, Math.round((1.0 - tess) * 4));
+      for (let c = 1; c < cols - 1; c++) {
+        const qCol = Math.floor(c / stepQuant) * stepQuant;
+        const u = qCol / Math.max(1, cols - 1);
+
+        let sample = 0;
+        if (active && scopeBytes) {
+          const sIdx = Math.min(scopeBytes.length - 1, Math.floor(u * scopeBytes.length));
+          sample = (scopeBytes[sIdx] - 128.0) / 128.0;
+        } else {
+          sample = Math.sin(u * TAU * 3.0 + t * 2.2) * Math.sin(u * PI) * 0.35 +
+                   Math.sin(u * TAU * 7.0 - t * 3.8) * 0.12;
+        }
+
+        if (erosion > 0.05) {
+          sample += (hash2(c * 0.7, Math.floor(t * 24)) - 0.5) * erosion * 0.45;
+        }
+
+        let drawC = c;
+        if (gateShear > 0.05 && hash2(Math.floor(c / 6), Math.floor(t * 20)) < gateShear * 0.5) {
+          drawC = clamp(c + Math.round((hash2(c, t) - 0.5) * 10 * gateShear), 0, cols - 1);
+        }
+
+        const rTarget = Math.round(cy + sample * (rows * 0.42));
+        const rClamp = clamp(rTarget, 1, rows - 2);
+        const absAmp = Math.abs(sample);
+        const aRow = absAmp > 0.65 ? 5 : (absAmp > 0.35 ? 4 : (absAmp > 0.15 ? 1 : 2));
+
+        const rStart = Math.min(midR, rClamp);
+        const rEnd = Math.max(midR, rClamp);
+        for (let r = rStart; r <= rEnd; r++) {
+          const isSpine = (r === rClamp);
+          const gIdx = isSpine ? spineIdx : echoIdx;
+          const rowInk = isSpine ? aRow : (b2 > 0.35 ? 3 : 0);
+          ctx.drawImage(atlasCanvas, gIdx * cellPx, rowInk * cellPx, cellPx, cellPx, drawC * cellPx, r * cellPx, cellPx, cellPx);
+        }
+      }
+    } else {
+      if (active && scopeBytes) {
+        let peak = 0;
+        for (let i = 0; i < scopeBytes.length; i++) {
+          const v = Math.abs(scopeBytes[i] - 128) / 128.0;
+          if (v > peak) peak = v;
+        }
+        state.seismoHistory.shift();
+        state.seismoHistory.push(peak);
+      } else {
+        state.seismoHistory.shift();
+        state.seismoHistory.push(0.08 + Math.abs(Math.sin(t * 1.4)) * 0.14);
+      }
+
+      const histLen = state.seismoHistory.length;
+      for (let c = 1; c < cols - 1; c++) {
+        const hIdx = Math.min(histLen - 1, Math.floor((c / Math.max(1, cols - 1)) * histLen));
+        const val = clamp(state.seismoHistory[hIdx] * (1.0 + erosion * 0.4), 0, 1);
+        const halfH = Math.round(val * (rows * 0.44));
+        const aRow = val > 0.62 ? 5 : (val > 0.35 ? 4 : (val > 0.15 ? 2 : 1));
+
+        for (let dy = -halfH; dy <= halfH; dy++) {
+          const r = midR + dy;
+          if (r < 1 || r >= rows - 1) continue;
+          const isRim = (Math.abs(dy) === halfH);
+          const gIdx = isRim ? spineIdx : echoIdx;
+          ctx.drawImage(atlasCanvas, gIdx * cellPx, (isRim ? aRow : 0) * cellPx, cellPx, cellPx, c * cellPx, r * cellPx, cellPx, cellPx);
+        }
+      }
+    }
+  }
+
+  /* ===========================================================================
+     12. MAIN 60FPS MULTI-PLANE COMPOSITOR
+     =========================================================================== */
+  function renderVisualiser(nowMs, dtSec) {
+    const pal = PALETTES[state.paletteIdx];
+    const rampLen = Math.max(1, state.activeGlyphs.length);
+    const maxGlyphIdx = rampLen - 1;
+
+    const liveB0 = state.bands[0].env;
+    const liveB1 = state.bands[1].env;
+    const liveB2 = state.bands[2].env;
+    const liveB3 = state.bands[3].env;
+
+    if (!state.frozen) {
+      const cadence = 0.24 + liveB0 * 0.85 + liveB1 * 0.40 + liveB2 * 0.35;
+      state.morphTime += dtSec * cadence;
+    }
+
+    const t = state.frozen ? state.frozenTime : state.morphTime;
+    const p0 = state.bandPhases[0];
+    const p1 = state.bandPhases[1];
+    const p2 = state.bandPhases[2];
+    const p3 = state.bandPhases[3];
+
+    const seed = state.frozen ? state.frozenSeed : state.morphSeed;
+    const b0 = state.frozen ? state.frozenBands[0] : liveB0;
+    const b1 = state.frozen ? state.frozenBands[1] : liveB1;
+    const b2 = state.frozen ? state.frozenBands[2] : liveB2;
+    const b3 = state.frozen ? state.frozenBands[3] : liveB3;
+
+    const erosion = state.params.erosion;
+    const tess = state.params.tessellation;
+    const fracture = state.params.fracture;
+    const grow = state.params.grow;
+    const prlx = state.params.prlx;
+    const gainNorm = state.params.gain;
+
+    const scDuck = clamp(1.0 - Math.pow(state.bassSidechain, 1.35) * 0.78, 0.22, 1.0);
+    const driveTearBias = Math.max(0, (gainNorm - 0.50) * 0.75);
+    const effFrac = clamp(Math.max(fracture, driveTearBias), 0, 1.2);
+    const dialExplore = clamp(Math.max(grow, erosion * 0.92, fracture * 0.85), 0, 1);
+
+    const transientPulse = clamp(b0 * 0.35 + (b2 * 0.85 + b3 * 0.95) * scDuck, 0, 1.3);
+    const gateShear = state.gates.shear.env * Math.max(0.25, effFrac) * (0.40 + transientPulse * 0.60);
+    const gateDrop = state.gates.drop.env * Math.max(0.25, effFrac) * (0.40 + transientPulse * 0.60);
+    const lightningEnv = state.gates.lightning.env;
+
+    if (state.vizScopeMode) {
+      renderAsciiScopeOverride(t, b0, b1, b2, b3, gateShear);
+      return;
+    }
+
+    const anyLaneOn = state.lanesActive[0] || state.lanesActive[1] || state.lanesActive[2] || state.lanesActive[3];
+
+    ctx.fillStyle = pal.bg;
+    ctx.fillRect(0, 0, visCanvas.width, visCanvas.height);
+
+    if (!anyLaneOn) return;
+
+    const wakeHeal = Math.pow(0.38, dtSec);
+    for (let i = 0; i < wakeGrid.length; i++) {
+      if (wakeGrid[i] > 0.005) wakeGrid[i] *= wakeHeal;
+      else wakeGrid[i] = 0;
+    }
+
+    occlusionMask.fill(0);
+
+    const camAmp = prlx * (0.14 + b0 * 0.12);
+    const camX = Math.sin(p0 * 0.48 + seed) * camAmp;
+    const camY = Math.cos(p0 * 0.36 + seed * 1.3) * camAmp * 0.65;
+    const warpK = prlx > 0.45 ? Math.pow((prlx - 0.45) / 0.55, 1.35) * 0.24 : 0;
+
+    const dynBgCellPx = Math.max(5, Math.round(cellPx * clamp(0.70 - prlx * 0.24, 0.46, 0.70)));
+    const dynFgCellPx = Math.max(9, Math.round(cellPx * clamp(1.24 + prlx * 0.48, 1.24, 1.72)));
+
+    const dialDissolve = Math.max(0, (erosion - 0.50) * 1.4, (effFrac - 0.50) * 1.4);
+    const growDissolve = grow > 0.01 ? Math.sin(state.morphCyclePhase * PI) * (0.35 + grow * 0.85) : 0;
+    const dissolveThreshold = clamp(Math.max(dialDissolve * (0.45 + transientPulse * 0.65), growDissolve), 0, 1.35);
+
+    const cx = (cols - 1) * 0.5;
+    const cy = (rows - 1) * 0.5;
+    const halfScale = Math.max(1, Math.min(cols, rows) * 0.48);
+    const invScale = 1.0 / halfScale;
+    const aspect = Math.max(0.5, cols / Math.max(1, rows));
+    const frameTick = Math.floor(nowMs * 0.04);
+    const idleBreath = 0.94 + Math.sin(p0 * 0.9) * 0.06;
+
+    const bandEnvs = [b0, b1, b2, b3];
+    const fCtx = {
+      fIdx: state.formationIdx,
+      morphAlpha: state.morphAlpha,
+      variantA: state.variantA,
+      variantB: state.variantB,
+      dissolveThreshold,
+      dissolveAngle: state.dissolveAngle,
+      dissolveMode: state.dissolveMode,
+      windAngle: state.windAngle,
+      p0, p1, p2, p3,
+      seed, b0, b1, b2, b3,
+      tess, erosion, fracture: effFrac,
+      gateShear, gateDrop,
+      cols, rows, frameTick,
+      spiritsOn: state.spiritsActive,
+      dialExplore
+    };
+
+    const shearSeed = state.gates.shear.seed;
+    const dropSeed = state.gates.drop.seed;
+
+    // Z-PLANE 1: PRE-EVALUATE MIDGROUND BUFFER
+    if (state.lanesActive[0]) {
+      for (let r = 0; r < rows; r++) {
+        const rawNy = (r - cy) * invScale + camY;
+
+        let rowShiftCols = 0;
+        if (gateShear > 0.04) {
+          const bandBand = Math.floor(r / 3);
+          const h = hash2(bandBand + shearSeed, frameTick * 0.25);
+          if (h > (1.0 - gateShear * 0.65)) {
+            const dir = (bandBand % 2 === 0) ? 1 : -1;
+            rowShiftCols = Math.round(dir * (2 + gateShear * 7));
+          }
+        }
+
+        for (let c = 0; c < cols; c++) {
+          const idx = r * cols + c;
+          const srcCol = c + rowShiftCols;
+          const rawNx = (srcCol - cx) * invScale + camX;
+          const warped = applyWidePerspective(rawNx, rawNy, warpK);
+          const wakeScar = wakeGrid[idx] || 0;
+
+          const cell = computeFormationCell(fCtx, warped.x, warped.y, srcCol, r, wakeScar);
+
+          if (cell.dissolvedToParticle && state.lanesActive[1] && Math.random() < 0.045) {
+            const p = dustParticles[Math.floor(Math.random() * dustParticles.length)];
+            if (p) {
+              p.nx = rawNx;
+              p.ny = rawNy;
+              p.vx = Math.cos(state.windAngle) * (0.55 + Math.random() * 0.75);
+              p.vy = Math.sin(state.windAngle) * (0.40 + Math.random() * 0.60);
+              p.zDepth = 1.18;
+              p.life = p.maxLife;
+            }
+          }
+
+          if (cell.occludes && state.artfxActive) {
+            occlusionMask[idx] = 1;
+          }
+
+          if (!Number.isFinite(cell.density) || cell.density <= 0.02) {
+            z1DensityBuf[idx] = 0;
+            continue;
+          }
+
+          if (gateDrop > 0.12 && state.formationIdx !== 2) {
+            const dh = hash2(Math.floor(c / 4) + dropSeed, Math.floor(r / 2) + dropSeed);
+            if (dh < gateDrop * 0.24) {
+              z1DensityBuf[idx] = 0;
+              continue;
+            }
+          }
+
+          z1DensityBuf[idx] = clamp(cell.density * idleBreath, 0, 1);
+          z1ZoneBuf[idx] = cell.zone;
+          z1PeakBuf[idx] = cell.peak ? 1 : 0;
+        }
+      }
+    } else {
+      z1DensityBuf.fill(0);
+    }
+
+    // Z-PLANE 0: BACKGROUND LIGHTING & PATINA WALL
+    const bgCols = Math.ceil(visCanvas.width / dynBgCellPx);
+    const bgRows = Math.ceil(visCanvas.height / dynBgCellPx);
+    const bgCx = (bgCols - 1) * 0.5;
+    const bgCy = (bgRows - 1) * 0.5;
+    const bgInvScale = 1.0 / Math.max(1, Math.min(bgCols, bgRows) * 0.48);
+
+    const artfxGlow = state.artfxActive
+      ? clamp(0.28 + (b1 * 0.45 + b2 * 0.55 + b3 * 0.45) * scDuck + lightningEnv * 0.75, 0.25, 1.2)
+      : lightningEnv;
+
+    if (artfxGlow > 0.04) {
+      const lAngle = state.gates.lightning.angle;
+      const lOffset = state.gates.lightning.offset;
+      const cosA = Math.cos(lAngle);
+      const sinA = Math.sin(lAngle);
+      const boltIdx = Math.min(Math.max(1, Math.floor(maxGlyphIdx * 0.85)), maxGlyphIdx);
+      const haloIdx = Math.min(Math.max(1, Math.floor(maxGlyphIdx * 0.35)), maxGlyphIdx);
+      const cloudIdx = Math.min(Math.max(1, Math.floor(maxGlyphIdx * 0.24)), maxGlyphIdx);
+
+      for (let r = 0; r < bgRows; r += 2) {
+        const ny = (r - bgCy) * bgInvScale + camY * 0.18;
+        const drawY = r * dynBgCellPx;
+        for (let c = 0; c < bgCols; c += 2) {
+          const nx = (c - bgCx) * bgInvScale + camX * 0.18;
+
+          const mCol = Math.round(cx + (nx - camX * 0.18) * halfScale);
+          const mRow = Math.round(cy + (ny - camY * 0.18) * halfScale);
+          const isOccluded = (state.artfxActive && mCol >= 0 && mCol < cols && mRow >= 0 && mRow < rows)
+            ? (occlusionMask[mRow * cols + mCol] === 1)
+            : false;
+          if (isOccluded) continue;
+
+          const jag = Math.sin(ny * 14.0 + seed * 5.0) * 0.06 + Math.cos(nx * 19.0) * 0.04;
+          const dLine = Math.abs(nx * sinA + ny * cosA - lOffset + jag);
+          const rCenter = Math.hypot(nx - camX * 0.18, ny - camY * 0.18);
+
+          if (lightningEnv > 0.05 && dLine < 0.045 * lightningEnv) {
+            ctx.drawImage(atlasCanvas, boltIdx * cellPx, 5 * cellPx, cellPx, cellPx, c * dynBgCellPx, drawY, dynBgCellPx, dynBgCellPx);
+          } else if (lightningEnv > 0.05 && dLine < 0.24 * lightningEnv && hash2(c * 0.7, r * 0.9) < 0.45 * lightningEnv) {
+            ctx.drawImage(atlasCanvas, haloIdx * cellPx, 3 * cellPx, cellPx, cellPx, c * dynBgCellPx, drawY, dynBgCellPx, dynBgCellPx);
+          } else if (state.artfxActive && rCenter < 0.62) {
+            const cloudWave = Math.sin(nx * 5.0 + p1 * 0.6) * Math.cos(ny * 5.0 - p2 * 0.5) * 0.5 + 0.5;
+            if (cloudWave * artfxGlow > (0.38 + rCenter * 0.45)) {
+              const rowInk = (lightningEnv > 0.25 || b2 * scDuck > 0.45) ? 5 : 3;
+              ctx.drawImage(atlasCanvas, cloudIdx * cellPx, rowInk * cellPx, cellPx, cellPx, c * dynBgCellPx, drawY, dynBgCellPx, dynBgCellPx);
+            }
+          }
+        }
+      }
+    }
+
+    if (state.lanesActive[2]) {
+      const silicaEnergy = clamp((b2 * 0.95 * scDuck + erosion * 0.25 + 0.08), 0.03, 0.88);
+
+      const panX = Math.cos(state.windAngle) * p2 * 0.06 + camX * 0.18;
+      const panY = Math.sin(state.windAngle) * p2 * 0.04 + camY * 0.18;
+      const bandDensity = 6.0 + tess * 9.0;
+      const sweepSpeed = p2 * 0.85 + seed;
+
+      const patLo = 0;
+      const patMid = Math.min(Math.max(1, Math.floor(maxGlyphIdx * 0.28)), maxGlyphIdx);
+      const patHi = Math.min(Math.max(1, Math.floor(maxGlyphIdx * 0.48)), maxGlyphIdx);
+
+      for (let r = 0; r < bgRows; r += 2) {
+        const ny = (r - bgCy) * bgInvScale + panY;
+        const waveH = Math.sin(ny * bandDensity + sweepSpeed);
+        if (waveH < (0.76 - silicaEnergy * 0.48)) continue;
+
+        const drawY = r * dynBgCellPx;
+        for (let c = (r % 4); c < bgCols; c += 2) {
+          const nx = (c - bgCx) * bgInvScale + panX;
+          const interference = Math.sin(nx * (5.0 + tess * 7.0) + ny * 3.5 - sweepSpeed * 0.7);
+          const grain = hash2(c * 0.51 + frameTick * 0.08, r * 0.67 + seed);
+          if (interference + grain * 0.5 < (1.12 - silicaEnergy * 0.68)) continue;
+
+          const mCol = Math.round(cx + (nx - panX) * halfScale);
+          const mRow = Math.round(cy + (ny - panY) * halfScale);
+
+          if (mCol >= 0 && mCol < cols && mRow >= 0 && mRow < rows) {
+            const wIdx = mRow * cols + mCol;
+            if (b2 * scDuck > 0.22) {
+              wakeGrid[wIdx] = Math.min(1.0, wakeGrid[wIdx] + b2 * scDuck * 0.14);
+            }
+            if (state.artfxActive && occlusionMask[wIdx] === 1) continue;
+          }
+
+          const isSpark = (b2 * scDuck > 0.52 && grain > 0.86) || (lightningEnv > 0.4 && grain > 0.75);
+          const gIdx = isSpark ? patHi : (interference > 0.45 ? patMid : patLo);
+          const atlasRow = isSpark ? 3 : 0;
+
+          ctx.drawImage(
+            atlasCanvas,
+            gIdx * cellPx, atlasRow * cellPx, cellPx, cellPx,
+            c * dynBgCellPx, drawY, dynBgCellPx, dynBgCellPx
+          );
+        }
+      }
+    }
+
+    // LAYER IV: PERIPHERAL BORDERS
+    if (state.lanesActive[3]) {
+      const letheEnergy = clamp(b3 * 1.25 * scDuck + b0 * 0.20 + 0.14, 0.14, 1.0);
+      const borderShatter = clamp(Math.max(0, erosion - 0.35) * 1.1 + Math.max(0, effFrac - 0.30) * 1.35 + gateShear * 0.65, 0, 1.3);
+
+      const baseMarginL = Math.max(2, Math.floor(cols * 0.05));
+      const baseMarginR = Math.min(cols - 3, Math.ceil(cols * 0.95));
+      const baseRailL = Math.max(5, Math.floor(cols * 0.11));
+      const baseRailR = Math.min(cols - 6, Math.ceil(cols * 0.89));
+
+      const runeIdx = Math.min(Math.max(1, Math.floor(maxGlyphIdx * 0.52)), maxGlyphIdx);
+      const sigilIdx = Math.min(Math.max(1, Math.floor(maxGlyphIdx * 0.74)), maxGlyphIdx);
+      const tickIdx = Math.min(1, maxGlyphIdx);
+
+      for (let r = 2; r < rows - 2; r++) {
+        const drawY = r * cellPx;
+        const ny = (r - cy) * invScale;
+        const wave = Math.sin(ny * (8.0 + tess * 10.0) - p3 * 1.6 + seed);
+
+        const rowNoise = hash2(r * 0.73 + seed, frameTick * 0.18);
+        const inwardPull = borderShatter > 0.05
+          ? Math.round(borderShatter * (cols * 0.28) * (0.35 + Math.abs(Math.sin(ny * 3.5 + p3 * 0.8)) * 0.65) * (rowNoise > 0.25 ? 1 : 0.2))
+          : 0;
+
+        const colL = clamp(baseMarginL + inwardPull, 1, Math.floor(cx - 2));
+        const colR = clamp(baseMarginR - inwardPull, Math.ceil(cx + 2), cols - 2);
+        const railL = clamp(baseRailL + Math.round(inwardPull * 1.25), 2, Math.floor(cx - 1));
+        const railR = clamp(baseRailR - Math.round(inwardPull * 1.25), Math.ceil(cx + 1), cols - 3);
+
+        if (inwardPull > cols * 0.14) {
+          wakeGrid[r * cols + railL] = Math.min(1.0, wakeGrid[r * cols + railL] + 0.35);
+          wakeGrid[r * cols + railR] = Math.min(1.0, wakeGrid[r * cols + railR] + 0.35);
+        }
+
+        if (r % 3 === 0 || (b3 * scDuck > 0.30 && wave > 0.35) || borderShatter > 0.35) {
+          const isMajor = (r % 9 === 0) || (borderShatter > 0.45 && rowNoise > 0.72);
+          const gIdx = isMajor ? sigilIdx : tickIdx;
+          const aRow = (isMajor && (b3 * scDuck > 0.30 || borderShatter > 0.5) ? 5 : (b3 > 0.16 || borderShatter > 0.25 ? 4 : 0));
+
+          if (!state.artfxActive || occlusionMask[r * cols + colL] === 0) {
+            ctx.drawImage(atlasCanvas, gIdx * cellPx, aRow * cellPx, cellPx, cellPx, colL * cellPx, drawY, cellPx, cellPx);
+          }
+          if (!state.artfxActive || occlusionMask[r * cols + colR] === 0) {
+            ctx.drawImage(atlasCanvas, gIdx * cellPx, aRow * cellPx, cellPx, cellPx, colR * cellPx, drawY, cellPx, cellPx);
+          }
+        }
+
+        if (wave > (0.76 - letheEnergy * 0.42 - borderShatter * 0.25)) {
+          const aRow = (b3 * scDuck > 0.42 || borderShatter > 0.6 ? 5 : 4);
+          if (!state.artfxActive || occlusionMask[r * cols + railL] === 0) {
+            ctx.drawImage(atlasCanvas, runeIdx * cellPx, aRow * cellPx, cellPx, cellPx, railL * cellPx, drawY, cellPx, cellPx);
+          }
+          if (!state.artfxActive || occlusionMask[r * cols + railR] === 0) {
+            ctx.drawImage(atlasCanvas, runeIdx * cellPx, aRow * cellPx, cellPx, cellPx, railR * cellPx, drawY, cellPx, cellPx);
+          }
+        }
+      }
+
+      const bracketSpan = Math.min(10, Math.floor(cols * 0.08));
+      const bRowColor = (b3 * scDuck > 0.30 || borderShatter > 0.4 ? 4 : 0);
+      for (let k = 0; k < bracketSpan; k++) {
+        const gIdx = (k === 0) ? sigilIdx : tickIdx;
+        const dropY = borderShatter > 0.15 ? Math.round(borderShatter * (rows * 0.22) * hash2(k, seed)) : 0;
+        const topRow = clamp(1 + dropY, 1, Math.floor(cy - 2));
+        const botRow = clamp(rows - 2 - dropY, Math.ceil(cy + 2), rows - 2);
+
+        ctx.drawImage(atlasCanvas, gIdx * cellPx, bRowColor * cellPx, cellPx, cellPx, (baseMarginL + k) * cellPx, topRow * cellPx, cellPx, cellPx);
+        ctx.drawImage(atlasCanvas, gIdx * cellPx, bRowColor * cellPx, cellPx, cellPx, (baseMarginR - k) * cellPx, topRow * cellPx, cellPx, cellPx);
+        ctx.drawImage(atlasCanvas, gIdx * cellPx, bRowColor * cellPx, cellPx, cellPx, (baseMarginL + k) * cellPx, botRow * cellPx, cellPx, cellPx);
+        ctx.drawImage(atlasCanvas, gIdx * cellPx, bRowColor * cellPx, cellPx, cellPx, (baseMarginR - k) * cellPx, botRow * cellPx, cellPx, cellPx);
+      }
+    }
+
+    // Z-PLANE 1: BLIT MIDGROUND ARCHITECTURE
+    if (state.lanesActive[0]) {
+      const boltDirX = Math.cos(state.gates.lightning.angle);
+      const boltDirY = Math.sin(state.gates.lightning.angle);
+      const rimStrength = state.artfxActive ? clamp(0.35 + (b2 + b3) * 0.65 * scDuck + lightningEnv * 0.85, 0, 1.4) : 0;
+
+      for (let r = 0; r < rows; r++) {
+        const drawY = r * cellPx;
+        const ny = (r - cy) * invScale;
+
+        for (let c = 0; c < cols; c++) {
+          const idx = r * cols + c;
+          const d = z1DensityBuf[idx];
+          if (d <= 0.02) continue;
+
+          const z = z1ZoneBuf[idx];
+          let isPk = z1PeakBuf[idx] === 1;
+
+          if (rimStrength > 0.35) {
+            const nx = (c - cx) * invScale;
+            const facing = nx * boltDirX + ny * boltDirY;
+            const isEdgeCell = (c > 0 && z1DensityBuf[idx - 1] <= 0.02) ||
+                               (c < cols - 1 && z1DensityBuf[idx + 1] <= 0.02) ||
+                               (r > 0 && z1DensityBuf[idx - cols] <= 0.02) ||
+                               (r < rows - 1 && z1DensityBuf[idx + cols] <= 0.02);
+            if (isEdgeCell && facing > -0.10) {
+              isPk = true;
+            }
+          }
+
+          const gIdx = clamp(Math.floor(d * maxGlyphIdx + 0.25), 0, maxGlyphIdx);
+          let atlasRow = 0;
+          const zoneEnergy = bandEnvs[z] || 0;
+          if (isPk && (zoneEnergy > 0.35 || rimStrength > 0.42)) {
+            atlasRow = 5;
+          } else if (zoneEnergy > 0.14 || (state.frozen && zoneEnergy > 0.10)) {
+            atlasRow = 1 + z;
+          } else {
+            atlasRow = 0;
+          }
+
+          ctx.drawImage(
+            atlasCanvas,
+            gIdx * cellPx, atlasRow * cellPx, cellPx, cellPx,
+            c * cellPx, drawY, cellPx, cellPx
+          );
+        }
+      }
+
+      const chunkGlyph = Math.min(Math.max(1, Math.floor(maxGlyphIdx * 0.72)), maxGlyphIdx);
+      for (let i = state.calvedChunks.length - 1; i >= 0; i--) {
+        const ch = state.calvedChunks[i];
+        if (!state.frozen) {
+          ch.life -= dtSec;
+          ch.vy += 0.95 * dtSec;
+          ch.nx += ch.vx * dtSec;
+          ch.ny += ch.vy * dtSec;
+        }
+        if (ch.life <= 0 || ch.ny > 0.94) {
+          if (state.lanesActive[1]) {
+            for (let k = 0; k < 8; k++) {
+              const p = dustParticles[Math.floor(Math.random() * dustParticles.length)];
+              if (p) {
+                p.nx = ch.nx + (Math.random() - 0.5) * 0.12;
+                p.ny = Math.min(0.92, ch.ny);
+                p.vx = (Math.random() - 0.5) * 0.85;
+                p.vy = -0.20 - Math.random() * 0.55;
+                p.zDepth = 1.28;
+                p.life = p.maxLife;
+              }
+            }
+          }
+          state.calvedChunks.splice(i, 1);
+          continue;
+        }
+
+        const baseC = Math.round(cx + ch.nx * halfScale);
+        const baseR = Math.round(cy + ch.ny * halfScale);
+        for (let dy = 0; dy < ch.size; dy++) {
+          for (let dx = 0; dx < ch.size; dx++) {
+            const pc = baseC + dx;
+            const pr = baseR + dy;
+            if (pc >= 0 && pc < cols && pr >= 0 && pr < rows) {
+              ctx.drawImage(
+                atlasCanvas,
+                chunkGlyph * cellPx, 4 * cellPx, cellPx, cellPx,
+                pc * cellPx, pr * cellPx, cellPx, cellPx
+              );
+            }
+          }
+        }
+      }
+    }
+
+    // Z-PLANE 2: FOREGROUND PARTICLES
+    if (state.lanesActive[1]) {
+      const highPresence = clamp((b2 * 0.80 + b3 * 1.15) * scDuck + b1 * 0.25 + erosion * 0.45, 0, 2.0);
+      const speedScale = 0.25 + Math.pow(highPresence, 1.65) * 4.4 + gateShear * 2.8;
+      const activeCount = Math.floor(PARTICLE_COUNT * clamp(0.08 + Math.pow(highPresence, 1.3) * 0.92, 0.08, 1.0));
+
+      const windVx = Math.cos(state.windAngle) * state.windGust * 1.55;
+      const windVy = Math.sin(state.windAngle) * state.windGust * 0.85;
+
+      const dustLo = 0;
+      const dustMid = Math.min(Math.max(1, Math.floor(maxGlyphIdx * 0.28)), maxGlyphIdx);
+      const dustHi = Math.min(Math.max(1, Math.floor(maxGlyphIdx * 0.58)), maxGlyphIdx);
+      const streakIdx = Math.min(Math.max(1, Math.floor(maxGlyphIdx * 0.42)), maxGlyphIdx);
+
+      for (let i = 0; i < activeCount; i++) {
+        const p = dustParticles[i];
+        if (!state.frozen) {
+          p.life -= dtSec * (0.45 + highPresence * 1.05);
+          if (p.life <= 0 || Math.abs(p.nx) > aspect * 1.18 || Math.abs(p.ny) > 1.18) {
+            spawnParticleOnFormation(p, state.formationIdx, aspect, seed, false);
+          }
+
+          let shockVx = 0;
+          let shockVy = 0;
+          const pr = Math.hypot(p.nx, p.ny) + 0.001;
+          for (let s = 0; s < state.shockwaves.length; s++) {
+            const sw = state.shockwaves[s];
+            const distToRing = Math.abs(pr - sw.r);
+            if (distToRing < 0.14) {
+              const impulse = (1.0 - distToRing / 0.14) * sw.strength * 2.8;
+              shockVx += (p.nx / pr) * impulse;
+              shockVy += (p.ny / pr) * impulse;
+            }
+          }
+
+          const swirlX = Math.sin(p.ny * 5.5 + p3 * 1.4 + p.phase) * (0.06 + highPresence * 0.55);
+          const swirlY = Math.cos(p.nx * 5.5 - p2 * 1.2 + p.phase) * (0.06 + highPresence * 0.55);
+
+          const zVel = p.zDepth;
+          p.nx += ((p.vx * speedScale + windVx + shockVx + swirlX) * zVel) * dtSec;
+          p.ny += ((p.vy * speedScale + windVy + shockVy + swirlY) * zVel) * dtSec;
+        }
+
+        const pCamX = p.nx - camX * (2.3 * p.zDepth);
+        const pCamY = p.ny - camY * (2.3 * p.zDepth);
+        const warpedP = applyWidePerspective(pCamX, pCamY, warpK * 0.65);
+
+        const col = Math.round(cx + warpedP.x * halfScale);
+        const row = Math.round(cy + warpedP.y * halfScale);
+        if (col < 0 || col >= cols || row < 0 || row >= rows) continue;
+
+        if (highPresence > 0.45 && p.zDepth > 0.85) {
+          const wIdx = row * cols + col;
+          wakeGrid[wIdx] = Math.min(1.0, wakeGrid[wIdx] + highPresence * 0.22);
+        }
+
+        const lifeNorm = clamp(p.life / p.maxLife, 0, 1);
+        const energy = clamp(lifeNorm * (0.35 + highPresence * 0.80) * p.weight, 0, 1);
+        const isStreaking = (highPresence > 0.60 && p.zDepth > 1.02);
+        const gIdx = isStreaking ? streakIdx : (energy > 0.68 ? dustHi : (energy > 0.32 ? dustMid : dustLo));
+
+        let atlasRow = 0;
+        if (energy > 0.74 && highPresence > 0.55) {
+          atlasRow = 5;
+        } else if (b3 * scDuck > 0.30 && p.weight > 0.55) {
+          atlasRow = 4;
+        } else if (highPresence > 0.22) {
+          atlasRow = 2;
+        }
+
+        const drawSize = p.zDepth > 1.05 ? dynFgCellPx : (p.zDepth < 0.72 ? dynBgCellPx : cellPx);
+        const drawX = Math.round(col * cellPx + (cellPx - drawSize) * 0.5);
+        const drawY = Math.round(row * cellPx + (cellPx - drawSize) * 0.5);
+
+        ctx.drawImage(
+          atlasCanvas,
+          gIdx * cellPx, atlasRow * cellPx, cellPx, cellPx,
+          drawX, drawY, drawSize, drawSize
+        );
+      }
+    }
+
+    // IDLE TITLE OVERLAY (180s CYCLE)
+    if (state.idlePresence > 0.03) {
+      const ip = state.idlePresence;
+      const isReleasing = (ip < state.prevIdlePresence);
+
+      const stageIdx = Math.floor(state.idleDuration / 45.0) % 4;
+      const stageLocalSec = state.idleDuration % 45.0;
+      const entryIdx = Math.floor(stageLocalSec / 15.0) % 3;
+      const phrasePhase = (stageLocalSec % 15.0) / 15.0;
+
+      const stageObj = SUITE_TITLE_STAGES[stageIdx];
+      const entry = stageObj.entries[entryIdx];
+
+      const driftPxX = Math.sin(state.idleDuration * 0.14) * (visCanvas.width * 0.12);
+      const driftPxY = Math.cos(state.idleDuration * 0.10) * (visCanvas.height * 0.10);
+
+      const arcUncanny = clamp(state.idleDuration / 180.0, 0, 1);
+      const cycleFade = isReleasing ? ip : Math.sin(phrasePhase * PI);
+      const visibility = clamp(cycleFade * ip * 1.45, 0, 1);
+
+      if (visibility > 0.04) {
+        const ramp = state.activeGlyphs.length > 0 ? state.activeGlyphs : ['·', '∶', '┼', '◈'];
+        const decayAmt = clamp((1.0 - cycleFade) * 0.72 + arcUncanny * 0.50 + erosion * 0.35, 0, 1);
+
+        const mainFontPx = clamp(Math.round(Math.min(visCanvas.width, visCanvas.height) * 0.034), 14, 28);
+        const subFontPx = Math.max(10, Math.round(mainFontPx * 0.62));
+        const charAdvance = Math.round(mainFontPx * 0.70);
+        const microFontPx = Math.max(8, Math.round(mainFontPx * 0.36));
+
+        const anchorX = visCanvas.width * 0.5 + driftPxX;
+        const anchorY = visCanvas.height * 0.24 + driftPxY;
+
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        const renderTitleLine = (rawText, lineIdx, isMain) => {
+          const len = rawText.length;
+          const fontPx = isMain ? mainFontPx : subFontPx;
+          const stepX = isMain ? charAdvance : Math.round(subFontPx * 0.65);
+          const baseLineY = anchorY + lineIdx * (mainFontPx * 1.45);
+
+          for (let i = 0; i < len; i++) {
+            let ch = rawText[i];
+            if (ch === ' ') continue;
+            const u = i - (len - 1) * 0.5;
+
+            let px = anchorX + u * stepX;
+            let py = baseLineY;
+
+            if (stageIdx === 1 && Math.abs(u) < 2.2) {
+              py += (u < 0 ? -mainFontPx * 0.28 : mainFontPx * 0.28);
+            }
+            if (stageIdx === 2 && isMain && (i % 2 === 0)) {
+              ctx.font = `900 ${fontPx}px 'Courier New', Menlo, monospace`;
+              ctx.fillStyle = pal.rest;
+              ctx.fillText(ch, px - stepX * 0.85, py + 2);
+            }
+
+            if (isReleasing) {
+              const scatterPx = (1.0 - ip) * mainFontPx * 8.0;
+              const h = hash2(i * 1.9, lineIdx + 3.1);
+              px += Math.cos(state.windAngle + h * 1.6) * scatterPx * (0.4 + h);
+              py += Math.sin(state.windAngle + h * 1.6) * scatterPx * (0.4 + h);
+            }
+
+            const charRoll = hash2(i * 1.37 + stageIdx * 5.0, entryIdx * 3.1 + lineIdx);
+            if (visibility < charRoll * 0.72) continue;
+
+            if (isMain) {
+              ctx.font = `bold ${microFontPx}px 'Courier New', Menlo, monospace`;
+              const subOffsets = [
+                [-stepX * 0.34, -fontPx * 0.46],
+                [ stepX * 0.34, -fontPx * 0.46],
+                [-stepX * 0.34,  fontPx * 0.46],
+                [ stepX * 0.34,  fontPx * 0.46]
+              ];
+              for (let q = 0; q < 4; q++) {
+                const fizzlePhase = Math.sin(t * (2.4 + q * 0.9) + i * 1.7 + q * 2.1);
+                if (fizzlePhase > (0.15 - decayAmt * 0.45)) {
+                  const mGlyphIdx = Math.floor(hash2(i * 3 + q, Math.floor(t * 3 + q)) * ramp.length) % ramp.length;
+                  const mCh = toMonoChar(ramp[mGlyphIdx]);
+                  ctx.fillStyle = (q % 2 === 0) ? pal.domains[stageIdx % 4] : pal.rest;
+                  ctx.fillText(mCh, px + subOffsets[q][0], py + subOffsets[q][1]);
+                }
+              }
+            }
+
+            if (decayAmt > 0.36 && charRoll < (decayAmt - 0.32) * 0.85) {
+              const gIdx = Math.floor(hash2(i, frameTick * 0.06) * ramp.length) % ramp.length;
+              ch = toMonoChar(ramp[gIdx]);
+            }
+
+            if ((stageIdx === 3 || decayAmt > 0.42) && charRoll > 0.58) {
+              const dropProg = ((t * 1.9 + i * 0.65) % 3.5);
+              const crumbY = py + fontPx * 0.6 + dropProg * fontPx * 0.65;
+              const crumbX = px + Math.sin(t * 1.5 + i) * stepX * 0.35;
+              const crumbCh = toMonoChar(ramp[Math.min(ramp.length - 1, 1)]);
+              ctx.font = `bold ${microFontPx}px 'Courier New', Menlo, monospace`;
+              ctx.fillStyle = pal.domains[1];
+              ctx.fillText(crumbCh, crumbX, crumbY);
+            }
+
+            ctx.font = `900 ${fontPx}px 'Courier New', Menlo, monospace`;
+            ctx.fillStyle = isMain ? pal.highlight : pal.domains[2];
+            ctx.fillText(ch, px, py);
+          }
+        };
+
+        renderTitleLine(entry.main, 0, true);
+        renderTitleLine(entry.sub, 1, false);
+        ctx.restore();
+      }
+    }
+  }
+
+  /* ===========================================================================
+     13. OLED SCOPE & METER TELEMETRY
+     =========================================================================== */
+  function renderScope() {
+    if (!state.hudVisible) return;
+    const w = scopeCanvas.width;
+    const h = scopeCanvas.height;
+
+    scopeCtx.fillStyle = '#030403';
+    scopeCtx.fillRect(0, 0, w, h);
+
+    scopeCtx.fillStyle = '#18221d';
+    const midY = Math.floor(h * 0.5);
+    for (let x = 2; x < w - 2; x += 4) {
+      scopeCtx.fillRect(x, midY, 1, 1);
+    }
+
+    const active = scopeAnalyser && audioCtx && audioCtx.state === 'running' &&
+      (state.sourceMode === 'mic' || (state.sourceMode === 'file' && !dom.audioPlayer.paused));
+
+    if (!active) {
+      scopeCtx.fillStyle = state.frozen ? '#487e9e' : (state.idlePresence > 0.1 ? '#4e8f60' : '#3d5247');
+      for (let x = 2; x < w - 2; x += 3) {
+        const u = x / w;
+        const amp = state.idlePresence > 0.1 ? 4.5 : 2.5;
+        const y = Math.round(midY + Math.sin(u * TAU * 2.0 + state.morphTime * 1.8) * Math.sin(u * PI) * amp);
+        scopeCtx.fillRect(x, y, 2, 2);
+      }
+      return;
+    }
+
+    scopeAnalyser.getByteTimeDomainData(scopeBytes);
+
+    if (state.scopeMode === 0) {
+      scopeCtx.fillStyle = state.frozen ? '#487e9e' : '#4e8f60';
+      for (let x = 1; x < w - 1; x += 2) {
+        const sIdx = Math.min(scopeBytes.length - 1, Math.floor((x / w) * scopeBytes.length));
+        const v = scopeBytes[sIdx] / 128.0;
+        const y = clamp(Math.floor((v * h) * 0.5), 1, h - 3);
+        scopeCtx.fillRect(x, y, 2, 2);
+      }
+    } else {
+      let peak = 0;
+      for (let i = 0; i < scopeBytes.length; i++) {
+        const v = Math.abs(scopeBytes[i] - 128) / 128.0;
+        if (v > peak) peak = v;
+      }
+      state.seismoHistory.shift();
+      state.seismoHistory.push(peak);
+      scopeCtx.fillStyle = '#9e4b4b';
+      for (let x = 1; x < w - 1; x += 2) {
+        const bh = Math.floor(state.seismoHistory[x] * (h - 2));
+        for (let py = h - 2; py >= h - 2 - bh; py -= 2) {
+          scopeCtx.fillRect(x, py, 1, 1);
+        }
+      }
+    }
+  }
+
+  function updateTelemetry() {
+    if (!state.hudVisible) return;
+
+    for (let i = 0; i < 4; i++) {
+      const b = state.bands[i];
+      dom.meters[i].style.width = `${Math.round(clamp(b.env, 0, 1) * 100)}%`;
+    }
+
+    if (state.fileLoaded && !state.isScrubbing && Number.isFinite(dom.audioPlayer.duration) && dom.audioPlayer.duration > 0) {
+      const cur = dom.audioPlayer.currentTime || 0;
+      const dur = dom.audioPlayer.duration;
+      renderAsciiScrubBar(cur / dur);
+      dom.fileTimecode.textContent = `${formatTime(cur)}/${formatTime(dur)}`;
+    }
+  }
+
+  /* ===========================================================================
+     14. UI STATE TOGGLES & ATELIER BUILDERS
+     =========================================================================== */
+  const LANE_NAMES = [
+    'I. STRATA // MIDGROUND ARCHITECTURE',
+    'II. EROSION // FOREGROUND PARTICLES',
+    'III. SILICA // BACKGROUND PATINA',
+    'IV. LETHE // PERIPHERAL BORDERS'
+  ];
+
+  function syncLaneEngagementUI() {
+    for (let i = 0; i < 4; i++) {
+      const on = state.lanesActive[i];
+      dom.laneBtns[i].classList.toggle('active', on);
+      dom.laneBtns[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+      dom.mrows[i].classList.toggle('disengaged', !on);
+    }
+  }
+
+  function toggleVisualLane(idx, silent = false) {
+    if (state.vizScopeMode) {
+      state.vizScopeMode = false;
+      dom.btnVizScope.classList.remove('active');
+    }
+    state.lanesActive[idx] = !state.lanesActive[idx];
+    syncLaneEngagementUI();
+    if (!silent) {
+      showToast(`${LANE_NAMES[idx]}: ${state.lanesActive[idx] ? 'ON' : 'OFF'}`);
+    }
+  }
+
+  function toggleAllVisualLanes() {
+    if (state.vizScopeMode) {
+      state.vizScopeMode = false;
+      dom.btnVizScope.classList.remove('active');
+    }
+    const anyOn = state.lanesActive.some(Boolean);
+    const target = !anyOn;
+    state.lanesActive = [target, target, target, target];
+    syncLaneEngagementUI();
+    showToast(`ALL LAYERS: ${target ? 'ON' : 'OFF'}`);
+  }
+
+  function toggleArtfx() {
+    state.artfxActive = !state.artfxActive;
+    dom.btnArtfx.classList.toggle('active-cyan', state.artfxActive);
+    showToast(`ARTFX: ${state.artfxActive ? 'ON' : 'OFF'}`);
+  }
+
+  function toggleSpirits() {
+    state.spiritsActive = !state.spiritsActive;
+    dom.btnSpirits.classList.toggle('active-amber', state.spiritsActive);
+    showToast(`SPIRITS: ${state.spiritsActive ? 'ON' : 'OFF'}`);
+  }
+
+  function toggleDensity2x() {
+    state.density2x = !state.density2x;
+    dom.btnDensity.textContent = state.density2x ? '[Z] 2X' : '[Z] 1X';
+    dom.btnDensity.classList.toggle('active-green', state.density2x);
+    resizeViewport();
+    showToast(`GRID DENSITY: ${state.density2x ? '2X' : '1X'}`);
+  }
+
+  function cycleAspectMode() {
+    state.aspectModeIdx = (state.aspectModeIdx + 1) % ASPECT_MODES.length;
+    const modeLabel = ASPECT_MODES[state.aspectModeIdx];
+    dom.btnAspect.textContent = `[O] ${modeLabel}`;
+    dom.btnAspect.classList.toggle('active', state.aspectModeIdx !== 0);
+    resizeViewport();
+    showToast(`ASPECT: ${modeLabel}`);
+  }
+
+  function toggleVizScopeOverride() {
+    state.vizScopeMode = !state.vizScopeMode;
+    dom.btnVizScope.classList.toggle('active', state.vizScopeMode);
+    showToast(`SCOPE OVERRIDE: ${state.vizScopeMode ? 'ON' : 'OFF'}`);
+  }
+
+  function syncFormationButtonsUI() {
+    const btns = dom.formationButtons.querySelectorAll('.shelf-btn');
+    btns.forEach((b, i) => b.classList.toggle('active', i === state.formationIdx));
+    const fm = FORMATIONS[state.formationIdx];
+    if (state.formationIdx === 8 && state.relicLoaded) {
+      dom.formationSubtitle.textContent = `RELIC // ${state.relicName.slice(0, 22)}`;
+    } else {
+      dom.formationSubtitle.textContent = fm.subtitle;
+    }
+  }
+
+  function buildFormationButtons() {
+    dom.formationButtons.innerHTML = '';
+    FORMATIONS.forEach((fm, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'shelf-btn' + (idx === state.formationIdx ? ' active' : '');
+      btn.textContent = fm.label;
+      btn.title = `${fm.subtitle} [${idx + 1}]`;
+      btn.addEventListener('click', () => selectFormation(idx));
+      dom.formationButtons.appendChild(btn);
+    });
+    dom.formationSubtitle.textContent = FORMATIONS[state.formationIdx].subtitle;
+  }
+
+  function selectFormation(idx) {
+    state.formationIdx = ((idx % FORMATIONS.length) + FORMATIONS.length) % FORMATIONS.length;
+    state.morphAlpha = 0.0;
+    state.morphCyclePhase = 0.0;
+    state.variantA = createVariantGenome(0.0);
+    state.variantB = createVariantGenome(clamp(0.30 + state.params.grow * 0.70, 0.30, 1.0));
+    state.dissolveAngle = Math.random() * TAU;
+    state.dissolveMode = Math.floor(Math.random() * 4);
+    syncFormationButtonsUI();
+    const fm = FORMATIONS[state.formationIdx];
+    state.calvedChunks.length = 0;
+    initDustParticles();
+    if (state.formationIdx === 8 && !state.relicLoaded) {
+      showToast('IX. RELIC // DROP OR LOAD PNG/JPG IMAGE');
+    } else {
+      showToast(`FORMATION // ${fm.label}`);
+    }
+  }
+
+  function syncActiveGlyphsFromStrip() {
+    const filtered = [];
+    for (let i = 0; i < state.rawGlyphs.length; i++) {
+      if (!state.mutedFlags[i]) filtered.push(state.rawGlyphs[i]);
+    }
+    state.activeGlyphs = filtered.length > 0 ? filtered : [state.rawGlyphs[0] || '·'];
+    rebuildGlyphAtlas();
+  }
+
+  function renderGlyphStrip() {
+    dom.glyphStrip.innerHTML = '';
+    state.rawGlyphs.forEach((ch, idx) => {
+      const tile = document.createElement('button');
+      tile.type = 'button';
+      tile.className = 'glyph-tile' + (state.mutedFlags[idx] ? ' muted' : '');
+      tile.textContent = toMonoChar(ch);
+      tile.title = state.mutedFlags[idx] ? 'Unmute glyph' : 'Mute glyph';
+      tile.addEventListener('click', () => {
+        const activeCount = state.mutedFlags.filter((m) => !m).length;
+        if (!state.mutedFlags[idx] && activeCount <= 1) {
+          showToast('MIN 1 GLYPH REQUIRED');
+          return;
+        }
+        state.mutedFlags[idx] = !state.mutedFlags[idx];
+        tile.classList.toggle('muted', state.mutedFlags[idx]);
+        syncActiveGlyphsFromStrip();
+      });
+      dom.glyphStrip.appendChild(tile);
+    });
+  }
+
+  function loadSymbolRampString(str, isCustom) {
+    const chars = Array.from(str).filter((c) => c.trim() !== '');
+    if (chars.length === 0) {
+      showToast('ENTER AT LEAST ONE SYMBOL');
+      return;
+    }
+    state.rawGlyphs = chars;
+    state.mutedFlags = new Array(chars.length).fill(false);
+    dom.customGlyphInput.value = chars.join('');
+    renderGlyphStrip();
+    syncActiveGlyphsFromStrip();
+
+    const btns = dom.symbolSetButtons.querySelectorAll('.shelf-btn');
+    btns.forEach((b, i) => b.classList.toggle('active', !isCustom && i === state.lexiconIdx));
+  }
+
+  function selectSymbolLexicon(idx) {
+    state.lexiconIdx = ((idx % SYMBOL_LEXICONS.length) + SYMBOL_LEXICONS.length) % SYMBOL_LEXICONS.length;
+    const lex = SYMBOL_LEXICONS[state.lexiconIdx];
+    loadSymbolRampString(lex.chars, false);
+    showToast(`SYMBOLS // ${lex.name}`);
+  }
+
+  function buildSymbolSetButtons() {
+    dom.symbolSetButtons.innerHTML = '';
+    SYMBOL_LEXICONS.forEach((lex, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'shelf-btn' + (idx === state.lexiconIdx ? ' active' : '');
+      btn.textContent = lex.name;
+      btn.title = `${lex.name}: ${lex.chars}`;
+      btn.addEventListener('click', () => selectSymbolLexicon(idx));
+      dom.symbolSetButtons.appendChild(btn);
+    });
+    loadSymbolRampString(SYMBOL_LEXICONS[state.lexiconIdx].chars, false);
+  }
+
+  function buildPaletteButtons() {
+    dom.paletteButtons.innerHTML = '';
+    PALETTES.forEach((pal, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'pal-btn' + (idx === state.paletteIdx ? ' active' : '');
+      btn.title = pal.name;
+
+      const labelSpan = document.createElement('span');
+      labelSpan.textContent = pal.name;
+
+      const swatchBar = document.createElement('div');
+      swatchBar.className = 'pal-swatches';
+      pal.domains.forEach((hex) => {
+        const sw = document.createElement('span');
+        sw.style.backgroundColor = hex;
+        swatchBar.appendChild(sw);
+      });
+
+      btn.appendChild(labelSpan);
+      btn.appendChild(swatchBar);
+      btn.addEventListener('click', () => selectPalette(idx));
+      dom.paletteButtons.appendChild(btn);
+    });
+  }
+
+  function selectPalette(idx) {
+    state.paletteIdx = ((idx % PALETTES.length) + PALETTES.length) % PALETTES.length;
+    const btns = dom.paletteButtons.querySelectorAll('.pal-btn');
+    btns.forEach((b, i) => b.classList.toggle('active', i === state.paletteIdx));
+    rebuildGlyphAtlas();
+    showToast(`PALETTE // ${PALETTES[state.paletteIdx].name}`);
+  }
+
+  /* ===========================================================================
+     15. KNOB INTERACTION & KEYBOARD SHORTCUTS
+     =========================================================================== */
+  const knobEls = Array.from(document.querySelectorAll('.knob-svg'));
+
+  function setKnobValue(knobEl, val) {
+    val = clamp(val, 0, 1);
+    const param = knobEl.dataset.param;
+    knobEl.dataset.val = val.toFixed(4);
+    state.params[param] = val;
+
+    const angle = -135 + val * 270;
+    const ind = knobEl.querySelector('.knob-indicator');
+    if (ind) {
+      ind.setAttribute('transform', `rotate(${angle.toFixed(1)}, 22, 22)`);
+    }
+
+    const readout = document.getElementById(`readout-${param}`);
+    if (readout) {
+      readout.textContent = (param === 'gain')
+        ? `${gainDialToMult(val).toFixed(2)}x`
+        : val.toFixed(2);
+    }
+
+    if (param === 'gain' && inputGain && audioCtx) {
+      inputGain.gain.setTargetAtTime(gainDialToMult(val), audioCtx.currentTime, 0.015);
+    }
+  }
+
+  function initKnobs() {
+    knobEls.forEach((knob) => {
+      const wrap = knob.closest('.knob-container');
+      setKnobValue(knob, parseFloat(knob.dataset.val));
+
+      let dragging = false;
+      let startY = 0;
+      let startVal = 0;
+
+      knob.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        dragging = true;
+        startY = e.clientY;
+        startVal = parseFloat(knob.dataset.val);
+        if (wrap) wrap.classList.add('dragging');
+        try { knob.setPointerCapture(e.pointerId); } catch (_) {}
+      });
+
+      knob.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        const sens = e.shiftKey ? 0.0014 : 0.0052;
+        setKnobValue(knob, startVal + (startY - e.clientY) * sens);
+      });
+
+      function endDrag(e) {
+        if (!dragging) return;
+        dragging = false;
+        if (wrap) wrap.classList.remove('dragging');
+        try { knob.releasePointerCapture(e.pointerId); } catch (_) {}
+      }
+
+      knob.addEventListener('pointerup', endDrag);
+      knob.addEventListener('pointercancel', endDrag);
+
+      knob.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        const def = parseFloat(knob.dataset.default);
+        setKnobValue(knob, def);
+        const label = knob.dataset.param === 'gain' ? 'GAIN RESET (1.00x)' : `${knob.dataset.param.toUpperCase()} RESET`;
+        showToast(label);
+      });
+    });
+  }
+
+  function triggerScatter() {
+    knobEls.forEach((knob) => {
+      const p = knob.dataset.param;
+      if (p === 'gain' || p === 'grow' || p === 'prlx') return;
+      setKnobValue(knob, Math.random() * 0.85);
+    });
+    state.morphSeed = 0.5 + Math.random() * 25.0;
+    state.windAngle = Math.random() * TAU;
+    state.dissolveAngle = Math.random() * TAU;
+    state.dissolveMode = Math.floor(Math.random() * 4);
+    if (state.frozen) {
+      state.frozenSeed = state.morphSeed;
+    }
+    initDustParticles();
+    showToast('SCATTER // SEED & DIALS ROLLED');
+  }
+
+  function toggleDrift() {
+    state.driftActive = !state.driftActive;
+    dom.btnDrift.classList.toggle('active', state.driftActive);
+    showToast(`DRIFT: ${state.driftActive ? 'ON' : 'OFF'}`);
+  }
+
+  setInterval(() => {
+    if (!state.driftActive) return;
+    knobEls.forEach((knob) => {
+      const p = knob.dataset.param;
+      if (p === 'gain' || p === 'grow' || p === 'prlx') return;
+      const cur = state.params[p];
+      const next = clamp(cur + (Math.random() - 0.5) * 0.012, 0.0, 0.92);
+      setKnobValue(knob, next);
+    });
+  }, 60);
+
+  function toggleFreeze() {
+    state.frozen = !state.frozen;
+    dom.btnFreeze.classList.toggle('active', state.frozen);
+    if (state.frozen) {
+      state.frozenTime = state.morphTime;
+      state.frozenSeed = state.morphSeed;
+      for (let i = 0; i < 4; i++) {
+        state.frozenBands[i] = state.bands[i].env;
+      }
+      dom.btnFreeze.textContent = 'FROZEN';
+      showToast('FRAME FROZEN');
+    } else {
+      dom.btnFreeze.textContent = 'FREEZE';
+      showToast('FRAME RELEASED');
+    }
+  }
+
+  function toggleAtelier() {
+    state.atelierOpen = !state.atelierOpen;
+    dom.atelierShelf.classList.toggle('collapsed', !state.atelierOpen);
+    dom.btnAtelier.classList.toggle('active', state.atelierOpen);
+    showToast(`ATELIER: ${state.atelierOpen ? 'OPEN' : 'COLLAPSED'}`);
+  }
+
+  function toggleHud() {
+    state.hudVisible = !state.hudVisible;
+    dom.chassisDock.classList.toggle('hidden', !state.hudVisible);
+    dom.cornerToggle.textContent = state.hudVisible ? 'HIDE [H]' : 'SHOW [H]';
+    dom.cornerToggle.classList.toggle('stealth', !state.hudVisible);
+    if (!state.hudVisible) {
+      showToast('HUD HIDDEN // PRESS [H] TO RESTORE');
+    }
+  }
+
+  function toggleFullscreen() {
+    try {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+      } else {
+        document.exitFullscreen();
+      }
+    } catch (_) {
+      showToast('FULLSCREEN UNAVAILABLE');
+    }
+  }
+
+  async function toggleFilePlayPause() {
+    if (!state.fileLoaded) {
+      dom.fileUpload.click();
+      return;
+    }
+    const ok = await initOrResumeAudio();
+    if (!ok) return;
+
+    if (dom.audioPlayer.paused) {
+      stopMic();
+      state.sourceMode = 'file';
+      dom.btnFile.classList.add('active');
+      dom.btnMic.classList.remove('active');
+      updateMonitorUI();
+      try { await dom.audioPlayer.play(); } catch (_) {}
+    } else {
+      dom.audioPlayer.pause();
+    }
+    updatePlayPauseUI();
+  }
+
+  function handleDroppedOrSelectedFile(file) {
+    if (!file) return;
+    if (file.type.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp)$/i.test(file.name)) {
+      loadRelicImageFile(file);
+    } else if (file.type.startsWith('audio/') || /\.(wav|mp3|ogg|flac|aiff|aif|m4a)$/i.test(file.name)) {
+      loadAudioFile(file);
+    } else {
+      showToast('UNSUPPORTED FILE TYPE');
+    }
+  }
+
+  function scrubToPointer(clientX) {
+    if (!state.fileLoaded || !Number.isFinite(dom.audioPlayer.duration) || dom.audioPlayer.duration <= 0) return;
+    const rect = dom.asciiScrub.getBoundingClientRect();
+    const ratio = clamp((clientX - rect.left) / Math.max(1, rect.width), 0, 1);
+    const targetSec = ratio * dom.audioPlayer.duration;
+    dom.audioPlayer.currentTime = targetSec;
+    renderAsciiScrubBar(ratio);
+    dom.fileTimecode.textContent = `${formatTime(targetSec)}/${formatTime(dom.audioPlayer.duration)}`;
+  }
+
+  function wireControls() {
+    scopeCanvas.addEventListener('click', () => {
+      state.scopeMode = 1 - state.scopeMode;
+      showToast(state.scopeMode === 0 ? 'OLED // WAVEFORM' : 'OLED // SEISMOGRAPH');
+    });
+
+    dom.btnVizScope.addEventListener('click', toggleVizScopeOverride);
+    dom.btnActivate.addEventListener('click', toggleActivate);
+    dom.btnScatter.addEventListener('click', triggerScatter);
+    dom.btnDrift.addEventListener('click', toggleDrift);
+    dom.btnFreeze.addEventListener('click', toggleFreeze);
+    dom.btnCast.addEventListener('click', triggerCastSnapshot);
+
+    dom.btnMic.addEventListener('click', engageMicInput);
+    dom.btnFile.addEventListener('click', () => dom.fileUpload.click());
+
+    dom.fileUpload.addEventListener('change', (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (f) handleDroppedOrSelectedFile(f);
+      e.target.value = '';
+    });
+
+    dom.btnMon.addEventListener('click', () => {
+      if (state.sourceMode === 'mic') return;
+      state.monitorOn = !state.monitorOn;
+      updateMonitorUI();
+      showToast(`MONITOR: ${state.monitorOn ? 'ON' : 'OFF'}`);
+    });
+
+    dom.btnMicPrev.addEventListener('click', () => cycleMicDevice(-1));
+    dom.btnMicNext.addEventListener('click', () => cycleMicDevice(1));
+    dom.micDeviceLabel.addEventListener('click', () => cycleMicDevice(1));
+
+    dom.btnPlayPause.addEventListener('click', toggleFilePlayPause);
+
+    dom.audioPlayer.addEventListener('loadedmetadata', () => {
+      dom.fileTimecode.textContent = `00:00/${formatTime(dom.audioPlayer.duration)}`;
+    });
+    dom.audioPlayer.addEventListener('play', updatePlayPauseUI);
+    dom.audioPlayer.addEventListener('pause', updatePlayPauseUI);
+
+    dom.asciiScrub.addEventListener('pointerdown', (e) => {
+      if (!state.fileLoaded) return;
+      e.preventDefault();
+      state.isScrubbing = true;
+      scrubToPointer(e.clientX);
+      try { dom.asciiScrub.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    dom.asciiScrub.addEventListener('pointermove', (e) => {
+      if (!state.isScrubbing) return;
+      scrubToPointer(e.clientX);
+    });
+    const endScrub = (e) => {
+      if (!state.isScrubbing) return;
+      state.isScrubbing = false;
+      try { dom.asciiScrub.releasePointerCapture(e.pointerId); } catch (_) {}
+    };
+    dom.asciiScrub.addEventListener('pointerup', endScrub);
+    dom.asciiScrub.addEventListener('pointercancel', endScrub);
+
+    for (let i = 0; i < 4; i++) {
+      dom.laneBtns[i].addEventListener('click', () => toggleVisualLane(i));
+      const lbl = dom.mrows[i].querySelector('.meter-label');
+      if (lbl) lbl.addEventListener('click', () => toggleVisualLane(i));
+    }
+    syncLaneEngagementUI();
+
+    dom.btnArtfx.addEventListener('click', toggleArtfx);
+    dom.btnSpirits.addEventListener('click', toggleSpirits);
+    dom.btnDensity.addEventListener('click', toggleDensity2x);
+    dom.btnAspect.addEventListener('click', cycleAspectMode);
+    dom.btnAtelier.addEventListener('click', toggleAtelier);
+    dom.btnFullscreen.addEventListener('click', toggleFullscreen);
+    dom.btnHide.addEventListener('click', toggleHud);
+    dom.cornerToggle.addEventListener('click', toggleHud);
+
+    dom.btnCustomSet.addEventListener('click', () => {
+      const val = dom.customGlyphInput.value;
+      loadSymbolRampString(val, true);
+      dom.customGlyphInput.blur();
+      showToast('CUSTOM GLYPH RAMP APPLIED');
+    });
+    dom.customGlyphInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        dom.btnCustomSet.click();
+      } else if (e.key === 'Escape') {
+        dom.customGlyphInput.blur();
+      }
+    });
+    dom.btnCustomRst.addEventListener('click', () => {
+      selectSymbolLexicon(state.lexiconIdx);
+    });
+
+    let dragCounter = 0;
+    window.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      dragCounter++;
+      dom.dropOverlay.classList.add('active');
+    });
+    window.addEventListener('dragover', (e) => {
+      e.preventDefault();
+    });
+    window.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        dom.dropOverlay.classList.remove('active');
+      }
+    });
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dragCounter = 0;
+      dom.dropOverlay.classList.remove('active');
+      const files = e.dataTransfer && e.dataTransfer.files;
+      if (!files || files.length === 0) return;
+      for (let i = 0; i < files.length; i++) {
+        handleDroppedOrSelectedFile(files[i]);
+      }
+    });
+
+    window.addEventListener('keydown', (e) => {
+      const tag = e.target ? e.target.tagName : '';
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') {
+        if (e.key === 'Escape') e.target.blur();
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+      if (key === 'q') {
+        toggleVisualLane(0);
+      } else if (key === 'w') {
+        toggleVisualLane(1);
+      } else if (key === 'e') {
+        toggleVisualLane(2);
+      } else if (key === 'r') {
+        toggleVisualLane(3);
+      } else if (key === 'a') {
+        toggleAllVisualLanes();
+      } else if (key === 't') {
+        toggleArtfx();
+      } else if (key === 'y') {
+        toggleSpirits();
+      } else if (key === 'z') {
+        toggleDensity2x();
+      } else if (key === 'o') {
+        cycleAspectMode();
+      } else if (key === 'v') {
+        toggleVizScopeOverride();
+      } else if (key === 'c') {
+        triggerCastSnapshot();
+      } else if (key >= '1' && key <= '9') {
+        selectFormation(Number(key) - 1);
+      } else if (key === 'm') {
+        selectFormation(state.formationIdx + 1);
+      } else if (key === 'g') {
+        selectSymbolLexicon(state.lexiconIdx + 1);
+      } else if (key === 'p') {
+        selectPalette(state.paletteIdx + 1);
+      } else if (key === 'd') {
+        toggleAtelier();
+      } else if (key === 'f') {
+        toggleFullscreen();
+      } else if (key === 'h') {
+        toggleHud();
+      } else if (key === 's') {
+        triggerScatter();
+      } else if (key === 'x') {
+        toggleFreeze();
+      } else if (e.code === 'Space') {
+        e.preventDefault();
+        if (state.sourceMode === 'file' && state.fileLoaded) {
+          toggleFilePlayPause();
+        }
+      }
+    });
+
+    window.addEventListener('resize', resizeViewport);
+  }
+
+  /* ===========================================================================
+     16. MAIN RENDER LOOP
+     =========================================================================== */
+  let lastMs = performance.now();
+
+  function animate(nowMs) {
+    const dtSec = clamp((nowMs - lastMs) * 0.001, 0.001, 0.05);
+    lastMs = nowMs;
+
+    processAudioAndGates(nowMs, dtSec);
+    renderVisualiser(nowMs, dtSec);
+    renderScope();
+    updateTelemetry();
+
+    requestAnimationFrame(animate);
+  }
+
+  window.onload = () => {
+    buildFormationButtons();
+    buildSymbolSetButtons();
+    buildPaletteButtons();
+    initKnobs();
+    wireControls();
+    updateMonitorUI();
+    resizeViewport();
+    populateMicDevices();
+    requestAnimationFrame(animate);
+  };
+})();
+</script>
+</body>
+</html>

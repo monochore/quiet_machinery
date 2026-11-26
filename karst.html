@@ -1,0 +1,2038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>KARST // TECTONIC RHYTHM ENGINE</title>
+<style>
+  /* =========================================================================
+     01. DESIGN TOKENS & BASE RESET
+     ========================================================================= */
+  :root {
+    --bg: #050605;
+    --panel: rgba(9, 11, 10, 0.94);
+    --well: #040504;
+    --border-main: #5d786a;
+    --border-inner: #27342d;
+    --col-div: rgba(93, 120, 106, 0.28);
+
+    --c-green: #4e8f60;
+    --c-amber: #a67a3c;
+    --c-steel: #8c9690;
+    --c-lime: #9ca352;
+    --c-cyan: #487e9e;
+    --c-red: #c45858;
+    --c-red-dim: #9e4b4b;
+    --vellum: #e6e3da;
+    --text-main: #c7d1cc;
+    --text-dim: #6e8277;
+    --mono: 'Courier New', Menlo, Monaco, Consolas, monospace;
+  }
+
+  * {
+    box-sizing: border-box;
+    border-radius: 0;
+  }
+
+  html, body, #chassis, .column, .oled-container, .knob-container, #seq-shelf,
+  button, .step-btn, .mute-btn, #ascii-bed, .ascii-scrub, .cycle-box {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  html, body {
+    background-color: var(--bg);
+    color: var(--text-main);
+    font-family: var(--mono);
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+
+  /* =========================================================================
+     02. CHASSIS & UPPER DECK LAYOUT
+     ========================================================================= */
+  #chassis {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--panel);
+    border: 1px solid var(--border-main);
+    outline: 1px solid var(--border-inner);
+    outline-offset: -5px;
+    padding: 10px 8px 9px 8px;
+    box-shadow: inset 0 0 44px rgba(0, 0, 0, 0.94), 0 16px 48px rgba(0, 0, 0, 0.92);
+    transform-origin: center center;
+    width: 980px;
+  }
+
+  #chassis::before,
+  #chassis::after {
+    position: absolute;
+    font-family: var(--mono);
+    font-size: 10px;
+    line-height: 1;
+    color: var(--border-main);
+    pointer-events: none;
+  }
+  #chassis::before { content: '◈'; top: 2px; left: 3px; }
+  #chassis::after  { content: '◈'; top: 2px; right: 3px; }
+
+  .upper-deck {
+    display: grid;
+    grid-template-columns: 32px 1fr 32px;
+    width: 100%;
+  }
+
+  .vertical-text {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    text-align: center;
+    font-size: 9.5px;
+    font-weight: bold;
+    letter-spacing: 3.5px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .panel-core {
+    display: grid;
+    grid-template-columns: 168px repeat(4, 1fr) 126px;
+    border-left: 1px solid var(--col-div);
+    border-right: 1px solid var(--col-div);
+    padding: 10px 0;
+    width: 100%;
+  }
+
+  .column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border-right: 1px solid var(--col-div);
+    padding: 0 7px;
+    position: relative;
+    min-width: 0;
+  }
+  .column:last-child {
+    border-right: none;
+  }
+
+  .col-header {
+    width: 100%;
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 1.4px;
+    margin-bottom: 14px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid var(--border-inner);
+    text-transform: uppercase;
+    color: var(--text-dim);
+    height: 18px;
+    text-align: center;
+    transition: color 0.08s ease;
+    white-space: nowrap;
+  }
+  .col-header::before { content: '· '; color: var(--border-main); }
+  .col-header::after  { content: ' ·'; color: var(--border-main); }
+
+  /* =========================================================================
+     03. GLOBAL & OLED MODULE
+     ========================================================================= */
+  .oled-container {
+    width: 100%;
+    background: var(--well);
+    border: 1px solid var(--border-inner);
+    margin-bottom: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 5px;
+    gap: 4px;
+    box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.85);
+  }
+
+  #scope {
+    width: 100%;
+    height: 38px;
+    background: #030403;
+    border: 1px solid var(--border-inner);
+    cursor: pointer;
+    display: block;
+    image-rendering: pixelated;
+  }
+
+  .oled-row {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    gap: 3px;
+    align-items: center;
+  }
+
+  .oled-btn {
+    flex: 1;
+    background: #080a09;
+    border: 1px solid #35453c;
+    color: var(--text-main);
+    font-family: var(--mono);
+    font-size: 8px;
+    font-weight: bold;
+    letter-spacing: 0.4px;
+    padding: 3.5px 2px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: 0.1s;
+    text-align: center;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .oled-btn:hover {
+    background: #151c18;
+    border-color: var(--border-main);
+    color: var(--vellum);
+  }
+  .oled-btn.active {
+    background: var(--vellum);
+    color: #050605;
+    border-color: var(--vellum);
+  }
+  .oled-btn.active-red {
+    background: var(--c-red);
+    color: #050605;
+    border-color: var(--c-red);
+  }
+
+  .ab-row {
+    display: grid;
+    grid-template-columns: 20px 1fr 20px;
+    align-items: center;
+    width: 100%;
+    gap: 3px;
+  }
+  .ascii-scrub {
+    height: 18px;
+    background: var(--well);
+    border: 1px solid #35453c;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 8px;
+    letter-spacing: 0.4px;
+    color: var(--vellum);
+    cursor: ew-resize;
+    touch-action: none;
+    overflow: hidden;
+  }
+
+  .cycle-box {
+    display: grid;
+    grid-template-columns: 16px 1fr 16px;
+    align-items: stretch;
+    width: 100%;
+    background: var(--well);
+    border: 1px solid #35453c;
+    height: 20px;
+  }
+  .cycle-step {
+    background: #080a09;
+    border: none;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 8.5px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cycle-step:first-child { border-right: 1px solid var(--border-inner); }
+  .cycle-step:last-child  { border-left: 1px solid var(--border-inner); }
+  .cycle-step:hover {
+    background: #151c18;
+    color: var(--vellum);
+  }
+  .cycle-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 3px;
+    font-size: 7.5px;
+    font-weight: bold;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+  }
+  .cycle-label:hover {
+    color: var(--vellum);
+  }
+
+  /* =========================================================================
+     04. MACHINED ROTARY POTENTIOMETERS & MUTE SWITCHES
+     ========================================================================= */
+  .knob-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 14px;
+    width: 100%;
+  }
+  .knob-row {
+    display: flex;
+    justify-content: space-evenly;
+    width: 100%;
+    margin-bottom: 14px;
+  }
+  .knob-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+  }
+  .knob-label {
+    font-size: 7.8px;
+    font-weight: bold;
+    margin-bottom: 4px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .knob-svg {
+    width: 40px;
+    height: 40px;
+    cursor: ns-resize;
+    overflow: visible;
+    filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.75));
+    touch-action: none;
+  }
+  .knob-ticks {
+    stroke: #36453d;
+    stroke-width: 1.2px;
+  }
+  .knob-bg {
+    fill: #090c0a;
+    stroke-width: 1.8px;
+  }
+  .knob-cap {
+    fill: #111513;
+    stroke: #28332d;
+    stroke-width: 1px;
+  }
+  .knob-indicator {
+    stroke: var(--vellum);
+    stroke-width: 2px;
+    stroke-linecap: butt;
+  }
+  .knob-svg.plocked .knob-indicator {
+    stroke: var(--c-red);
+    stroke-width: 2.5px;
+  }
+  .knob-svg.mod-active .knob-indicator {
+    stroke: var(--c-amber);
+  }
+
+  .mute-btn {
+    width: 20px;
+    height: 20px;
+    background: #080a09;
+    border: 1px solid #35453c;
+    cursor: pointer;
+    margin-top: auto;
+    margin-bottom: 6px;
+    transition: 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    color: var(--text-dim);
+  }
+  .mute-btn::after {
+    content: '·';
+  }
+  .mute-btn:hover {
+    border-color: var(--border-main);
+    color: var(--vellum);
+  }
+  .mute-btn.active {
+    background: var(--vellum);
+    border-color: var(--vellum);
+    color: #050605;
+  }
+  .mute-btn.active::after {
+    content: '×';
+    font-weight: bold;
+  }
+
+  .col-c1 .knob-bg { stroke: var(--c-green); }   .col-c1 .knob-label { color: var(--c-green); }
+  .col-v1 .knob-bg { stroke: var(--c-amber); }   .col-v1 .knob-label { color: var(--c-amber); }
+  .col-v2 .knob-bg { stroke: var(--c-steel); }   .col-v2 .knob-label { color: var(--c-steel); }
+  .col-v3 .knob-bg { stroke: var(--c-lime); }    .col-v3 .knob-label { color: var(--c-lime); }
+  .col-v4 .knob-bg { stroke: var(--c-cyan); }    .col-v4 .knob-label { color: var(--c-cyan); }
+  .col-c6 .knob-bg { stroke: var(--c-red-dim); } .col-c6 .knob-label { color: var(--c-red-dim); }
+
+  /* =========================================================================
+     05. LITHIC SEQUENCER SHELF
+     ========================================================================= */
+  #seq-shelf {
+    border-top: 1px solid var(--col-div);
+    margin: 0;
+    padding: 8px 10px 6px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: rgba(4, 5, 4, 0.85);
+    width: 100%;
+  }
+
+  .seq-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    white-space: nowrap;
+  }
+
+  .seq-section {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .seq-title {
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 1.6px;
+    color: var(--vellum);
+    margin-right: 4px;
+  }
+
+  .seq-btn {
+    background: #080a09;
+    border: 1px solid #35453c;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 8px;
+    font-weight: bold;
+    letter-spacing: 0.6px;
+    padding: 3.5px 7px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: 0.1s;
+  }
+  .seq-btn:hover {
+    background: #151c18;
+    border-color: var(--border-main);
+    color: var(--vellum);
+  }
+  .seq-btn.active {
+    background: var(--vellum);
+    color: #050605;
+    border-color: var(--vellum);
+  }
+
+  .seq-btn.v-sel[data-v="0"].active { background: var(--c-amber); border-color: var(--c-amber); color: #050605; }
+  .seq-btn.v-sel[data-v="1"].active { background: var(--c-steel); border-color: var(--c-steel); color: #050605; }
+  .seq-btn.v-sel[data-v="2"].active { background: var(--c-lime);  border-color: var(--c-lime);  color: #050605; }
+  .seq-btn.v-sel[data-v="3"].active { background: var(--c-cyan);  border-color: var(--c-cyan);  color: #050605; }
+
+  #btn-lock-mode.active {
+    background: var(--c-red);
+    border-color: var(--c-red);
+    color: #050605;
+  }
+  #btn-seq-trig.active {
+    background: var(--c-green);
+    border-color: var(--c-green);
+    color: #050605;
+  }
+
+  /* =========================================================================
+     06. 16-STEP PARAMETER LOCK GRID & ASCII HORIZON BED
+     ========================================================================= */
+  .seq-steps {
+    display: grid;
+    grid-template-columns: repeat(16, 1fr);
+    gap: 5px;
+    width: 100%;
+  }
+
+  .step-btn {
+    height: 36px;
+    background: var(--well);
+    border: 1px solid var(--border-inner);
+    position: relative;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 3px 0;
+    transition: border-color 0.05s, background 0.05s;
+    touch-action: none;
+  }
+  .step-btn:nth-child(4n+1) {
+    border-left: 2px solid var(--border-main);
+  }
+  .step-btn:hover {
+    border-color: var(--border-main);
+  }
+
+  .step-num {
+    font-size: 8px;
+    font-weight: bold;
+    color: var(--text-dim);
+    letter-spacing: 0.4px;
+    line-height: 1;
+  }
+  .step-led {
+    width: 14px;
+    height: 3px;
+    background: #18221d;
+    transition: 0.05s;
+  }
+  .step-plock-ind {
+    width: 5px;
+    height: 5px;
+    background: transparent;
+  }
+
+  .step-btn.trig-on[data-vcolor="0"] .step-led { background: var(--c-amber); }
+  .step-btn.trig-on[data-vcolor="1"] .step-led { background: var(--c-steel); }
+  .step-btn.trig-on[data-vcolor="2"] .step-led { background: var(--c-lime); }
+  .step-btn.trig-on[data-vcolor="3"] .step-led { background: var(--c-cyan); }
+
+  .step-btn.trig-on {
+    background: #0d120f;
+    border-color: #35453c;
+  }
+  .step-btn.has-plock .step-plock-ind {
+    background: var(--c-red);
+  }
+  .step-btn.playhead {
+    border-color: var(--vellum) !important;
+    background: rgba(230, 227, 218, 0.14);
+  }
+  .step-btn.editing {
+    border: 1px solid var(--c-red) !important;
+    background: rgba(196, 88, 88, 0.22);
+  }
+  .step-btn.editing .step-num {
+    color: var(--c-red);
+  }
+
+  #ascii-bed-wrap {
+    width: 100%;
+    height: 54px;
+    background: var(--well);
+    border: 1px solid var(--border-inner);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  #ascii-bed {
+    font-family: var(--mono);
+    font-size: 9px;
+    line-height: 9px;
+    letter-spacing: 0px;
+    white-space: pre;
+    margin: 0;
+    background-image: linear-gradient(90deg, #4e8f60, #4e8f60);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+</style>
+</head>
+<body>
+<div id="chassis">
+    <div class="upper-deck">
+        <div class="vertical-text">KARST</div>
+        <div class="panel-core">
+
+            <!-- COLUMN 1: GLOBAL & OLED -->
+            <div class="column col-c1">
+                <div class="col-header">GLOBAL</div>
+                <div class="oled-container">
+                    <canvas id="scope" title="Cycle Scope / Seismograph / BPM"></canvas>
+                    <div class="oled-row">
+                        <button class="oled-btn" id="btn-activate">ACTIVATE</button>
+                        <button class="oled-btn" id="btn-scatter">SCATTER</button>
+                    </div>
+                    <div class="oled-row">
+                        <button class="oled-btn" id="btn-dump">DUMP</button>
+                        <button class="oled-btn" id="btn-rec">REC</button>
+                        <button class="oled-btn" id="btn-drift">DRIFT</button>
+                    </div>
+                    <div class="ab-row">
+                        <button class="oled-btn" id="btn-a" title="Capture State A">A</button>
+                        <div class="ascii-scrub" id="ab-scrub" title="Drag to Crossfade A / B">[■░░░░░░░]</div>
+                        <button class="oled-btn" id="btn-b" title="Capture State B">B</button>
+                    </div>
+                    <div class="cycle-box" title="Cycle Stored Presets">
+                        <button type="button" class="cycle-step" id="btn-preset-prev">&lt;</button>
+                        <div class="cycle-label" id="preset-label">INITIALIZED</div>
+                        <button type="button" class="cycle-step" id="btn-preset-next">&gt;</button>
+                    </div>
+                </div>
+                <div class="knob-group">
+                    <div class="knob-container">
+                        <div class="knob-label">SHEAR</div>
+                        <svg class="knob-svg" id="shear" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-group">
+                    <div class="knob-container">
+                        <div class="knob-label">STRATA</div>
+                        <svg class="knob-svg" id="strata" data-val="0.5" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-group">
+                    <div class="knob-container">
+                        <div class="knob-label">EROSION</div>
+                        <svg class="knob-svg" id="erosion" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLUMN 2: I. MANTLE -->
+            <div class="column col-v1">
+                <div class="col-header" id="hdr-v1">I. MANTLE</div>
+                <div class="knob-group">
+                    <div class="knob-container">
+                        <div class="knob-label">MASS</div>
+                        <svg class="knob-svg" id="v1_mass" data-val="0.1" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-row">
+                    <div class="knob-container">
+                        <div class="knob-label">MATTER</div>
+                        <svg class="knob-svg" id="v1_matter" data-val="0.5" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob-label">DIV</div>
+                        <svg class="knob-svg" id="v1_clock" data-val="0.3" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-row">
+                    <div class="knob-container">
+                        <div class="knob-label">FLUID</div>
+                        <svg class="knob-svg" id="v1_fluid" data-val="0.2" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob-label">SLIP</div>
+                        <svg class="knob-svg" id="v1_gravity" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-group">
+                    <div class="knob-container">
+                        <div class="knob-label">VOL</div>
+                        <svg class="knob-svg" id="v1_vol" data-val="0.7" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="mute-btn" id="v1_mute" data-val="0" title="Mute Voice I"></div>
+            </div>
+
+            <!-- COLUMN 3: II. SHADOW -->
+            <div class="column col-v2">
+                <div class="col-header" id="hdr-v2">II. SHADOW</div>
+                <div class="knob-group">
+                    <div class="knob-container">
+                        <div class="knob-label">MASS</div>
+                        <svg class="knob-svg" id="v2_mass" data-val="0.2" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-row">
+                    <div class="knob-container">
+                        <div class="knob-label">MATTER</div>
+                        <svg class="knob-svg" id="v2_matter" data-val="0.4" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob-label">DIV</div>
+                        <svg class="knob-svg" id="v2_clock" data-val="0.9" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-row">
+                    <div class="knob-container">
+                        <div class="knob-label">FLUID</div>
+                        <svg class="knob-svg" id="v2_fluid" data-val="0.3" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob-label">SLIP</div>
+                        <svg class="knob-svg" id="v2_gravity" data-val="0.1" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-group">
+                    <div class="knob-container">
+                        <div class="knob-label">VOL</div>
+                        <svg class="knob-svg" id="v2_vol" data-val="0.7" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="mute-btn" id="v2_mute" data-val="0" title="Mute Voice II"></div>
+            </div>
+
+            <!-- COLUMN 4: III. FLINT -->
+            <div class="column col-v3">
+                <div class="col-header" id="hdr-v3">III. FLINT</div>
+                <div class="knob-group">
+                    <div class="knob-container">
+                        <div class="knob-label">MASS</div>
+                        <svg class="knob-svg" id="v3_mass" data-val="0.5" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-row">
+                    <div class="knob-container">
+                        <div class="knob-label">MATTER</div>
+                        <svg class="knob-svg" id="v3_matter" data-val="0.2" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob-label">DIV</div>
+                        <svg class="knob-svg" id="v3_clock" data-val="0.5" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-row">
+                    <div class="knob-container">
+                        <div class="knob-label">FLUID</div>
+                        <svg class="knob-svg" id="v3_fluid" data-val="0.1" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob-label">SLIP</div>
+                        <svg class="knob-svg" id="v3_gravity" data-val="0.2" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-group">
+                    <div class="knob-container">
+                        <div class="knob-label">VOL</div>
+                        <svg class="knob-svg" id="v3_vol" data-val="0.6" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="mute-btn" id="v3_mute" data-val="0" title="Mute Voice III"></div>
+            </div>
+
+            <!-- COLUMN 5: IV. APEX -->
+            <div class="column col-v4">
+                <div class="col-header" id="hdr-v4">IV. APEX</div>
+                <div class="knob-group">
+                    <div class="knob-container">
+                        <div class="knob-label">MASS</div>
+                        <svg class="knob-svg" id="v4_mass" data-val="0.8" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-row">
+                    <div class="knob-container">
+                        <div class="knob-label">MATTER</div>
+                        <svg class="knob-svg" id="v4_matter" data-val="0.1" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob-label">DIV</div>
+                        <svg class="knob-svg" id="v4_clock" data-val="0.1" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-row">
+                    <div class="knob-container">
+                        <div class="knob-label">FLUID</div>
+                        <svg class="knob-svg" id="v4_fluid" data-val="0.1" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob-label">SLIP</div>
+                        <svg class="knob-svg" id="v4_gravity" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-group">
+                    <div class="knob-container">
+                        <div class="knob-label">VOL</div>
+                        <svg class="knob-svg" id="v4_vol" data-val="0.6" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="mute-btn" id="v4_mute" data-val="0" title="Mute Voice IV"></div>
+            </div>
+
+            <!-- COLUMN 6: ENGINE -->
+            <div class="column col-c6">
+                <div class="col-header">ENGINE</div>
+                <div class="knob-group" style="margin-top: 22px;">
+                    <div class="knob-container">
+                        <div class="knob-label">BAKE</div>
+                        <svg class="knob-svg" id="bake" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-group" style="margin-top: 30px;">
+                    <div class="knob-container">
+                        <div class="knob-label">PING</div>
+                        <svg class="knob-svg" id="liquefaction" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-group" style="margin-top: 30px;">
+                    <div class="knob-container">
+                        <div class="knob-label">VOID</div>
+                        <svg class="knob-svg" id="collapse" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="vertical-text">TECTONIC RHYTHM ENGINE</div>
+    </div>
+
+    <!-- LITHIC SEQUENCER SHELF -->
+    <div id="seq-shelf">
+        <div class="seq-bar">
+            <div class="seq-section">
+                <span class="seq-title">LITHIC SEQUENCER</span>
+                <button class="seq-btn v-sel active" data-v="0">I. MANTLE</button>
+                <button class="seq-btn v-sel" data-v="1">II. SHADOW</button>
+                <button class="seq-btn v-sel" data-v="2">III. FLINT</button>
+                <button class="seq-btn v-sel" data-v="3">IV. APEX</button>
+            </div>
+            <div class="seq-section">
+                <button class="seq-btn" id="btn-seq-trig" title="Trigger Voices from 16-Step Grid Instead of DIV Clocks">SEQ TRIG: OFF</button>
+                <button class="seq-btn" id="btn-lock-mode" title="Toggle Step Lock Editing (or Shift / Right-Click Any Step)">LOCK</button>
+                <button class="seq-btn" id="btn-page" title="Cycle Pattern Length (16 / 32 / 64 Steps)">LEN: 16</button>
+                <button class="seq-btn" id="btn-view-page" title="Switch Active 16-Step Page">PG: 1/1</button>
+                <button class="seq-btn" id="btn-clr-locks" title="Clear Parameter Locks on Active Track">CLR</button>
+                <div style="display:flex; align-items:center; gap:6px; margin-left:6px; padding-left:8px; border-left:1px solid var(--border-inner);">
+                    <span class="knob-label" style="margin:0; color:var(--c-red-dim); font-size:8.5px;">DRAG</span>
+                    <svg class="knob-svg" id="seq_drag" data-val="0" viewBox="0 0 44 44" style="width:26px; height:26px;">
+                        <circle class="knob-bg" cx="22" cy="22" r="16.5" style="stroke:var(--c-red-dim);"></circle>
+                        <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                        <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        <div class="seq-steps" id="seq-steps"></div>
+        <div id="ascii-bed-wrap"><div id="ascii-bed"></div></div>
+    </div>
+</div>
+
+<script>
+/* ===========================================================================
+   01. VIEWPORT SCALING
+   =========================================================================== */
+function fitToScreen() {
+    const chassis = document.getElementById('chassis');
+    chassis.style.transform = 'none';
+    const rect = chassis.getBoundingClientRect();
+    const padding = 20;
+    const scaleX = window.innerWidth / (rect.width + padding);
+    const scaleY = window.innerHeight / (rect.height + padding);
+    const scale = Math.min(1, scaleX, scaleY);
+    chassis.style.transform = `scale(${scale})`;
+}
+window.addEventListener('resize', fitToScreen);
+setTimeout(fitToScreen, 50);
+
+/* ===========================================================================
+   02. AUDIO WORKLET DSP PROCESSOR
+   =========================================================================== */
+const workletString = `
+class SafeDelay {
+    constructor(size) { this.size = size; this.buf = new Float32Array(size); this.writeIdx = 0; }
+    write(val) { if(isNaN(val)) val = 0; this.buf[this.writeIdx] = val; this.writeIdx = (this.writeIdx + 1) % this.size; }
+    read(sAgo) {
+        if(isNaN(sAgo)) sAgo = 0; sAgo = Math.max(0, Math.min(sAgo, this.size - 2));
+        let rPos = this.writeIdx - sAgo; while(rPos < 0) rPos += this.size;
+        let i1 = Math.floor(rPos); let i2 = (i1 + 1) % this.size; let frac = rPos - i1;
+        return this.buf[i1] + frac * (this.buf[i2] - this.buf[i1]);
+    }
+}
+class KarstProcessor extends AudioWorkletProcessor {
+    constructor() {
+        super();
+        this.p = { strata: 0.5, liquefaction: 0, erosion: 0, bake: 0, collapse: 0, shear: 0, v1_mass: 0.1, v1_matter: 0.5, v1_gravity: 0, v1_fluid: 0.2, v1_clock: 0.3, v1_vol: 0.7, v1_mute: 0, v2_mass: 0.2, v2_matter: 0.4, v2_gravity: 0.1, v2_fluid: 0.3, v2_clock: 0.9, v2_vol: 0.7, v2_mute: 0, v3_mass: 0.5, v3_matter: 0.2, v3_gravity: 0.2, v3_fluid: 0.1, v3_clock: 0.5, v3_vol: 0.6, v3_mute: 0, v3_warp: 0, v4_mass: 0.8, v4_matter: 0.1, v4_gravity: 0, v4_fluid: 0.1, v4_clock: 0.1, v4_vol: 0.6, v4_mute: 0, v4_warp: 0, seq_drag: 0, seq_trig_mode: 0 };
+        this.port.onmessage = e => {
+            if (e.data.type === 'ext_trig') {
+                if (e.data.v === 0) this.ext_t1 = 1;
+                if (e.data.v === 1) this.ext_t2 = 1;
+                if (e.data.v === 2) this.ext_t3 = 1;
+                if (e.data.v === 3) this.ext_t4 = 1;
+            } else if (e.data.id && this.p[e.data.id] !== undefined) {
+                this.p[e.data.id] = e.data.value;
+            }
+        };
+        this.ext_t1=0; this.ext_t2=0; this.ext_t3=0; this.ext_t4=0;
+        this.seq_sub_acc=0; this.prev_seq_sub=0;
+        this.s_strata=0; this.s_liquefaction=0; this.s_erosion=0; this.s_bake=0; this.s_collapse=0; this.s_shear=0;
+        this.s_v1_mass_raw=0; this.s_v1_matter_raw=0; this.s_v1_fluid_slide=0; this.s_v1_clock=0; this.s_v1_vol=0; this.s_v1_gravity=0;
+        this.s_v2_mass_raw=0; this.s_v2_matter_raw=0; this.s_v2_fluid_slide=0; this.s_v2_clock=0; this.s_v2_vol=0; this.s_v2_gravity=0;
+        this.s_v3_mass_raw=0; this.s_v3_matter_raw=0; this.s_v3_fluid_slide=0; this.s_v3_clock=0; this.s_v3_vol=0; this.s_v3_gravity=0; this.s_v3_warp=0;
+        this.s_v4_mass_raw=0; this.s_v4_matter_raw=0; this.s_v4_fluid_slide=0; this.s_v4_clock=0; this.s_v4_vol=0; this.s_v4_gravity=0; this.s_v4_warp=0;
+        this.last_v1=0; this.last_v2=0; this.last_v3=0; this.last_v4=0; this.phase1=0; this.phase2=0;
+        this.del_L=new SafeDelay(96000); this.del_R=new SafeDelay(96000); this.rev1=new SafeDelay(96000); this.rev2=new SafeDelay(96000); this.crinkle_del=new SafeDelay(96000);
+        this.pink_filter=0; this.vactrol_state=0; this.opto_state=0; this.halo_lp=0; this.damp_L=0; this.damp_R=0;
+        this.rand2=0; this.rand3=0; this.rand4=0; this.slice_dice=0; this.glitch_step=0;
+        this.last_tap_L=0; this.last_tap_R=0; this.base_phase_acc=0; this.prev_base_phase=0;
+        this.c1_acc=0; this.c2_acc=0; this.c3_acc=0; this.c4_acc=0; this.prev_c1=0; this.prev_c2=0; this.prev_c3=0; this.prev_c4=0;
+        this.slice_phase_acc=0; this.prev_chopper=0; this.gate1_hold=0; this.gate2_hold=0; this.gate3_hold=0; this.gate4_hold=0;
+        this.slicer_env=0; this.raw_env1=0; this.raw_env2=0; this.env3=0; this.env4=0; this.sag_env=0; this.pitch_env1=0; this.pitch_env2=0; this.knock_env=0;
+        this.v1_mute_slide=0; this.v1_mute_slide2=0; this.v2_mute_slide=0; this.v2_mute_slide2=0; this.v3_mute_slide=0; this.v3_mute_slide2=0; this.v4_mute_slide=0; this.v4_mute_slide2=0;
+        this.prev_last_v1=0; this.flutter_acc=0; this.g3_slide=0; this.g4_slide=0; this.dc1_in=0; this.dc1_out=0; this.dc2_in=0; this.dc2_out=0;
+        this.TWOPI = Math.PI * 2; this.fc = 0; this.last_e1=0; this.last_e2=0;
+        this.slew_v1=0; this.slew_v2=0; this.slew_v3=0; this.slew_v4=0;
+    }
+    slide(t, c, u, d) { if(isNaN(c)) c=0; let diff=t-c; return c+(diff>0?diff/Math.max(1,u):diff/Math.max(1,d)); }
+    noise() { return Math.random()*2-1; }
+    wrap(v, min, max) { let r=max-min; if(r===0) return min; let res=(v-min)%r; if(res<0) res+=r; return res+min; }
+    safepow(b, e) { return Math.pow(Math.max(0,b),e); }
+    process(ins, outs, params) {
+        const outL=outs[0][0]; const outR=outs[0][1]; if(!outL || !outR) return true;
+        const sr=sampleRate; let env1=0, env2=0;
+
+        let drag_samples = Math.pow(this.p.seq_drag, 2) * (sr * 0.75);
+        let fast_slew = 64 + drag_samples;
+        let slow_slew = (this.p.seq_drag < 0.02) ? 120 : (3000 + drag_samples);
+
+        for (let i = 0; i < outL.length; i++) {
+            this.s_strata = this.slide(this.p.strata, this.s_strata, 100, 100); this.s_liquefaction = this.slide(this.p.liquefaction, this.s_liquefaction, fast_slew, fast_slew); this.s_erosion = this.slide(this.p.erosion, this.s_erosion, fast_slew, fast_slew); this.s_bake = this.slide(this.p.bake, this.s_bake, fast_slew, fast_slew); this.s_collapse = this.slide(this.p.collapse, this.s_collapse, fast_slew, fast_slew); this.s_shear = this.slide(this.p.shear, this.s_shear, fast_slew, fast_slew);
+            this.s_v1_mass_raw = this.slide(this.p.v1_mass, this.s_v1_mass_raw, slow_slew, slow_slew); let m_v1_mass = this.safepow(this.s_v1_mass_raw, 3); this.s_v1_matter_raw = this.slide(this.p.v1_matter, this.s_v1_matter_raw, slow_slew, slow_slew); let m_v1_matter = this.safepow(this.s_v1_matter_raw, 3); this.s_v1_fluid_slide = this.slide(this.p.v1_fluid, this.s_v1_fluid_slide, fast_slew, fast_slew); let m_v1_fluid = this.safepow(this.s_v1_fluid_slide, 3); this.s_v1_clock = this.slide(this.p.v1_clock, this.s_v1_clock, fast_slew, fast_slew); this.s_v1_vol = this.slide(this.p.v1_vol, this.s_v1_vol, fast_slew, fast_slew);
+            this.s_v2_mass_raw = this.slide(this.p.v2_mass, this.s_v2_mass_raw, slow_slew, slow_slew); let m_v2_mass = this.safepow(this.s_v2_mass_raw, 3); this.s_v2_matter_raw = this.slide(this.p.v2_matter, this.s_v2_matter_raw, slow_slew, slow_slew); let m_v2_matter = this.safepow(this.s_v2_matter_raw, 3); this.s_v2_fluid_slide = this.slide(this.p.v2_fluid, this.s_v2_fluid_slide, fast_slew, fast_slew); let m_v2_fluid = this.safepow(this.s_v2_fluid_slide, 3); this.s_v2_clock = this.slide(this.p.v2_clock, this.s_v2_clock, fast_slew, fast_slew); this.s_v2_vol = this.slide(this.p.v2_vol, this.s_v2_vol, fast_slew, fast_slew);
+            this.s_v3_mass_raw = this.slide(this.p.v3_mass, this.s_v3_mass_raw, slow_slew, slow_slew); let m_v3_mass = this.safepow(this.s_v3_mass_raw, 3); this.s_v3_matter_raw = this.slide(this.p.v3_matter, this.s_v3_matter_raw, slow_slew, slow_slew); let m_v3_matter = this.safepow(this.s_v3_matter_raw, 3); this.s_v3_fluid_slide = this.slide(this.p.v3_fluid, this.s_v3_fluid_slide, fast_slew, fast_slew); let m_v3_fluid = this.safepow(this.s_v3_fluid_slide, 3); this.s_v3_clock = this.slide(this.p.v3_clock, this.s_v3_clock, fast_slew, fast_slew); this.s_v3_vol = this.slide(this.p.v3_vol, this.s_v3_vol, fast_slew, fast_slew); this.s_v3_warp = this.slide(this.p.v3_warp, this.s_v3_warp, 200, 200);
+            this.s_v4_mass_raw = this.slide(this.p.v4_mass, this.s_v4_mass_raw, slow_slew, slow_slew); let m_v4_mass = this.safepow(this.s_v4_mass_raw, 3); this.s_v4_matter_raw = this.slide(this.p.v4_matter, this.s_v4_matter_raw, slow_slew, slow_slew); let m_v4_matter = this.safepow(this.s_v4_matter_raw, 3); this.s_v4_fluid_slide = this.slide(this.p.v4_fluid, this.s_v4_fluid_slide, fast_slew, fast_slew); let m_v4_fluid = this.safepow(this.s_v4_fluid_slide, 3); this.s_v4_clock = this.slide(this.p.v4_clock, this.s_v4_clock, fast_slew, fast_slew); this.s_v4_vol = this.slide(this.p.v4_vol, this.s_v4_vol, fast_slew, fast_slew); this.s_v4_warp = this.slide(this.p.v4_warp, this.s_v4_warp, 200, 200);
+            this.s_v1_gravity = this.slide(this.p.v1_gravity, this.s_v1_gravity, slow_slew, slow_slew); let m_v1_bleed = this.safepow(this.s_v1_gravity, 3); this.s_v2_gravity = this.slide(this.p.v2_gravity, this.s_v2_gravity, slow_slew, slow_slew); let m_v2_bleed = this.safepow(this.s_v2_gravity, 3); this.s_v3_gravity = this.slide(this.p.v3_gravity, this.s_v3_gravity, slow_slew, slow_slew); let m_v3_bleed = this.safepow(this.s_v3_gravity, 3); this.s_v4_gravity = this.slide(this.p.v4_gravity, this.s_v4_gravity, slow_slew, slow_slew); let m_v4_bleed = this.safepow(this.s_v4_gravity, 3);
+            let base_hz = this.s_strata * 3.5; let is_running = this.s_strata > 0.001 ? 1.0 : 0.0; let is_drone = this.s_strata <= 0.001 ? 1.0 : 0.0;
+            let rate1_mult = Math.pow(2, (this.s_v1_clock * 0.65 * 4) - 2); let rate2_mult = Math.pow(2, (this.s_v2_clock * 0.5 * 4) - 2); let rate3_mult = Math.pow(2, (this.s_v3_clock * 0.8 * 4) - 2); let rate4_mult = Math.pow(2, (this.s_v4_clock * 0.8 * 4) - 2);
+            let swing_amt = Math.min(this.s_shear * 5.0, 1.0) * 0.04; this.base_phase_acc = (this.base_phase_acc + base_hz/sr) % 1.0; let global_swing = Math.sin(this.base_phase_acc * this.TWOPI) * swing_amt;
+
+            let seq_sub = this.wrap(this.base_phase_acc * 4.0 + global_swing * 4.0, 0, 1);
+            if (seq_sub - this.prev_seq_sub < -0.5 && is_running) {
+                this.port.postMessage({ type: 'seq_tick' });
+            }
+            this.prev_seq_sub = seq_sub;
+
+            let d_base = this.base_phase_acc - this.prev_base_phase; this.prev_base_phase = this.base_phase_acc; let master_trig = (d_base < -0.5) ? is_running : 0; let fill_prob = Math.max(0.0, (this.s_shear - 0.2) * 1.25);
+            if (master_trig) { this.rand2 = Math.abs(this.noise()); this.rand3 = Math.abs(this.noise()); this.rand4 = Math.abs(this.noise()); this.slice_dice = Math.abs(this.noise()); }
+            let r2_mapped = (this.rand2 > 0.5) ? 0.5 : 1.5; let r3_mapped = (this.rand3 > 0.66) ? 2.0 : ((this.rand3 > 0.33) ? 1.5 : 0.5); let r4_mapped = (this.rand4 > 0.66) ? 4.0 : ((this.rand4 > 0.33) ? 2.0 : 1.5);
+            let mod_rate2 = rate2_mult * ((this.rand2 < fill_prob) ? r2_mapped : 1.0); let mod_rate3 = rate3_mult * ((this.rand3 < fill_prob) ? r3_mapped : 1.0); let mod_rate4 = rate4_mult * ((this.rand4 < fill_prob) ? r4_mapped : 1.0);
+            this.c1_acc = (this.c1_acc + (base_hz * rate1_mult)/sr) % 1.0; this.c2_acc = (this.c2_acc + (base_hz * mod_rate2)/sr) % 1.0; this.c3_acc = (this.c3_acc + (base_hz * mod_rate3)/sr) % 1.0; this.c4_acc = (this.c4_acc + (base_hz * mod_rate4)/sr) % 1.0;
+            let c1 = this.c1_acc; let c2 = this.wrap(this.c2_acc + global_swing, 0, 1); let c3 = this.wrap(this.c3_acc + (global_swing * 1.5), 0, 1); let c4 = this.wrap(this.c4_acc + (global_swing * 2.0), 0, 1);
+            let d_c1 = c1 - this.prev_c1; this.prev_c1 = c1; let d_c2 = c2 - this.prev_c2; this.prev_c2 = c2; let d_c3 = c3 - this.prev_c3; this.prev_c3 = c3; let d_c4 = c4 - this.prev_c4; this.prev_c4 = c4;
+            let raw_trig1 = (d_c1 < -0.5) ? is_running : 0; let raw_trig2 = (d_c2 < -0.5) ? is_running : 0; let raw_trig3 = (d_c3 < -0.5) ? is_running : 0; let raw_trig4 = (d_c4 < -0.5) ? is_running : 0;
+
+            if (this.p.seq_trig_mode > 0.5) {
+                raw_trig1 = this.ext_t1; this.ext_t1 = 0;
+                raw_trig2 = this.ext_t2; this.ext_t2 = 0;
+                raw_trig3 = this.ext_t3; this.ext_t3 = 0;
+                raw_trig4 = this.ext_t4; this.ext_t4 = 0;
+            } else {
+                if (this.ext_t1) { raw_trig1 = 1; this.ext_t1 = 0; }
+                if (this.ext_t2) { raw_trig2 = 1; this.ext_t2 = 0; }
+                if (this.ext_t3) { raw_trig3 = 1; this.ext_t3 = 0; }
+                if (this.ext_t4) { raw_trig4 = 1; this.ext_t4 = 0; }
+            }
+
+            if (raw_trig1) this.gate1_hold = 200; if (raw_trig2) this.gate2_hold = 200; if (raw_trig3) this.gate3_hold = 200; if (raw_trig4) this.gate4_hold = 200;
+            let cycle_033 = Math.sin(this.wrap(this.base_phase_acc * 0.33, 0, 1) * this.TWOPI); let fluid_ebb = 0.4 + (cycle_033 * 0.2);
+            let held_trig1 = (this.gate1_hold > 0) ? 1.0 : 0.0; if (this.gate1_hold > 0) this.gate1_hold--; let held_trig2 = (this.gate2_hold > 0) ? 1.0 : 0.0; if (this.gate2_hold > 0) this.gate2_hold--; let held_trig3 = (this.gate3_hold > 0) ? 1.0 : 0.0; if (this.gate3_hold > 0) this.gate3_hold--; let held_trig4 = (this.gate4_hold > 0) ? 1.0 : 0.0; if (this.gate4_hold > 0) this.gate4_hold--;
+            let gate1 = held_trig1; let gate2 = held_trig2; let gate3 = held_trig3 * (1 - m_v3_fluid) + fluid_ebb * m_v3_fluid; let gate4 = held_trig4 * (1 - m_v4_fluid) + fluid_ebb * m_v4_fluid;
+            let white_core = this.noise(); this.pink_filter = this.pink_filter * 0.9 + white_core * 0.1;
+            let slice_target = (this.slice_dice > 0.8) ? 32 : ((this.slice_dice > 0.6) ? 16 : ((this.slice_dice > 0.3) ? 8 : 4)); let max_mult = 2 + (this.s_erosion * 30); let actual_slice_mult = Math.min(slice_target, max_mult);
+            this.slice_phase_acc = this.wrap(this.slice_phase_acc + (base_hz * actual_slice_mult)/sr, 0, 1); let chopper = (this.slice_phase_acc < 0.5) ? 1.0 : 0.0; this.slicer_env = this.slide(chopper, this.slicer_env, 20, 200);
+            let d_chop = chopper - this.prev_chopper; if (d_chop > 0.5) { this.glitch_step = (this.glitch_step + 1) % 4; } this.prev_chopper = chopper;
+            let is_doppler = (this.glitch_step === 2 && this.s_erosion > 0.5) ? 1.0 : 0.0; let doppler_sag = this.slice_phase_acc * (this.s_erosion - 0.5) * 400 * is_doppler; let chop_mix = 1.0 * (1 - this.s_erosion) + this.slicer_env * this.s_erosion;
+            let att_1 = 80; let boom_tail1 = m_v1_fluid * sr * 1.5; let decay1 = sr * (0.05 + (m_v1_matter * 0.3)) + boom_tail1; this.raw_env1 = is_drone ? 1.0 : this.slide(gate1, this.raw_env1, att_1, decay1); env1 = this.safepow(this.raw_env1, 1.5);
+            let att_2 = 120; let boom_tail2 = m_v2_fluid * sr * 1.5; let decay2 = sr * (0.1 + (m_v2_matter * 2.0)) + boom_tail2; this.raw_env2 = is_drone ? 1.0 : this.slide(gate2, this.raw_env2, att_2, decay2); env2 = this.safepow(this.raw_env2, 1.5);
+            let power_draw = (this.s_v1_vol * m_v1_matter * env1) + (this.s_v2_vol * m_v2_matter * env2); let is_starving = power_draw > 1.35 ? 1.0 : 0.0; this.sag_env = this.slide(is_starving, this.sag_env, 400, 22050);
+            let pitch_sag = 1.0 - (this.sag_env * 0.06); let amp_sag = 1.0 - (this.sag_env * 0.5);
+            let att_3 = 2 + (m_v3_matter * 100); let dec_3 = sr * (0.05 + (m_v3_matter * 4.0)); this.env3 = is_drone ? 1.0 : this.slide(gate3, this.env3, att_3, dec_3);
+            let att_4 = 2 + (m_v4_matter * 100); let dec_4 = sr * (0.05 + (m_v4_matter * 4.0)); this.env4 = is_drone ? 1.0 : this.slide(gate4, this.env4, att_4, dec_4);
+            this.last_e1 = env1; this.last_e2 = env2;
+
+            let heat4 = Math.tanh(this.last_v4 * 1.5); this.slew_v4 += (heat4 - this.slew_v4) * 0.02; let bleed_pm1 = this.slew_v4 * m_v1_bleed * 3.0;
+            this.pitch_env1 = this.slide(held_trig1, this.pitch_env1, 1, 800); let freq1 = (40 + (m_v1_mass * 100)) * (1.0 + (this.pitch_env1 * 8.0)) * pitch_sag; this.phase1 = this.wrap(this.phase1 + (freq1 / sr), 0, 1);
+            let sine_phase1 = this.wrap(this.phase1 + bleed_pm1, 0, 1); let sine1 = Math.sin(sine_phase1 * this.TWOPI);
+            this.knock_env = this.slide(held_trig1, this.knock_env, 1, 300); let knock1 = this.pink_filter * this.knock_env * 0.4;
+            let drive1 = 1.5 + (m_v1_matter * 2.0); let voice1 = Math.tanh((sine1 + knock1) * drive1) * env1 * 1.5;
+
+            let d_last_v1 = this.last_v1 - this.prev_last_v1; this.prev_last_v1 = this.last_v1;
+            let heat1 = Math.tanh(d_last_v1 * 10.0); this.slew_v1 += (heat1 - this.slew_v1) * 0.02; let bleed_pm2 = this.slew_v1 * m_v2_bleed * 8.0;
+            this.pitch_env2 = this.slide(held_trig2, this.pitch_env2, 1, 1200); let freq2 = (30 + (m_v2_mass * 80)) * (1.0 + (this.pitch_env2 * 2.0)) * pitch_sag; this.phase2 = this.wrap(this.phase2 + (freq2 / sr), 0, 1);
+            let sine_phase2 = this.wrap(this.phase2 + bleed_pm2, 0, 1); let sine2 = Math.sin(sine_phase2 * this.TWOPI);
+            let drive2 = 1.2 + (m_v2_matter * 1.5); let voice2 = Math.tanh(sine2 * drive2) * env2 * 1.5;
+
+            let is_glass3 = this.s_v3_matter_raw < 0.01; let is_glass4 = this.s_v4_matter_raw < 0.01;
+
+            let heat2 = Math.tanh(this.last_v2 * 1.5); this.slew_v2 += (heat2 - this.slew_v2) * 0.02; let bleed_fm3 = this.slew_v2 * m_v3_bleed * 2500.0;
+            let wood_freq = (40 + (m_v3_mass * 2000)) * pitch_sag; if(this.p3_acc === undefined) this.p3_acc = 0; this.p3_acc = this.wrap(this.p3_acc + (wood_freq + bleed_fm3)/sr, 0, 1); let strike_core3 = Math.sin(this.p3_acc * this.TWOPI) * this.env3;
+            let fold_drive3 = strike_core3 * (1.0 + (m_v3_matter * 8.0)); let warped_drive3 = fold_drive3 + (this.safepow(Math.abs(fold_drive3), 1.7) * this.s_v3_warp * 2.5); let folded_out3 = Math.sin(warped_drive3 * this.TWOPI);
+            this.g3_slide = this.slide(gate3, this.g3_slide, 1, 5); let analog_v3 = (folded_out3 + (Math.pow(folded_out3, 3) * 0.333) + (white_core * this.g3_slide * 0.1)) * 0.12; let voice3 = is_glass3 ? (strike_core3 * 0.4) : analog_v3;
+
+            let heat3 = Math.tanh(this.last_v3 * 1.5); this.slew_v3 += (heat3 - this.slew_v3) * 0.02; let bleed_fm4 = this.slew_v3 * m_v4_bleed * 4000.0;
+            let metal_freq = (20 + (m_v4_mass * 3000)) * pitch_sag; if(this.p4_acc === undefined) this.p4_acc = 0; this.p4_acc = this.wrap(this.p4_acc + (metal_freq + bleed_fm4)/sr, 0, 1); let strike_core4 = Math.sin(this.p4_acc * this.TWOPI) * this.env4;
+            let fold_drive4 = strike_core4 * (1.0 + (m_v4_matter * 8.0)); let warped_drive4 = fold_drive4 + (this.safepow(Math.abs(fold_drive4), 1.7) * this.s_v4_warp * 2.5); let folded_out4 = Math.sin(warped_drive4 * this.TWOPI);
+            this.g4_slide = this.slide(gate4, this.g4_slide, 1, 5); let analog_v4 = (folded_out4 + (Math.pow(folded_out4, 3) * 0.333) + (white_core * this.g4_slide * 0.1)) * 0.12; let voice4 = is_glass4 ? (strike_core4 * 0.4) : analog_v4;
+
+            this.last_v1 = isNaN(voice1) ? 0 : voice1; this.last_v2 = isNaN(voice2) ? 0 : voice2; this.last_v3 = isNaN(voice3) ? 0 : voice3; this.last_v4 = isNaN(voice4) ? 0 : voice4;
+            this.v1_mute_slide = this.slide(this.p.v1_mute, this.v1_mute_slide, 10, 10); this.v1_mute_slide2 = this.slide(1 - this.v1_mute_slide, this.v1_mute_slide2, 10, 10); let v1_out = voice1 * this.s_v1_vol * this.v1_mute_slide2;
+            this.v2_mute_slide = this.slide(this.p.v2_mute, this.v2_mute_slide, 10, 10); this.v2_mute_slide2 = this.slide(1 - this.v2_mute_slide, this.v2_mute_slide2, 10, 10); let v2_out = voice2 * this.s_v2_vol * this.v2_mute_slide2;
+            this.v3_mute_slide = this.slide(this.p.v3_mute, this.v3_mute_slide, 10, 10); this.v3_mute_slide2 = this.slide(1 - this.v3_mute_slide, this.v3_mute_slide2, 10, 10); let v3_out = voice3 * this.s_v3_vol * this.v3_mute_slide2;
+            this.v4_mute_slide = this.slide(this.p.v4_mute, this.v4_mute_slide, 10, 10); this.v4_mute_slide2 = this.slide(1 - this.v4_mute_slide, this.v4_mute_slide2, 10, 10); let v4_out = voice4 * this.s_v4_vol * this.v4_mute_slide2;
+            let tectonic_global_sum = v1_out + v2_out + (v3_out * 0.5) + (v4_out * 0.5);
+            let env_in = Math.abs(tectonic_global_sum); let delta_vac = env_in - this.vactrol_state; let slew_rate = delta_vac > 0 ? 0.05 : 0.001; this.vactrol_state = this.vactrol_state + (delta_vac * slew_rate);
+            let is_ouroboros = (this.s_liquefaction > 0.85 && this.s_collapse > 0.85) ? 1.0 : 0.0; let ouroboros_feed = (this.last_tap_L + this.last_tap_R) * 0.5 * is_ouroboros * 1.5;
+            let crinkle_amt = Math.min(this.s_collapse * 2.0, 1.0); let halo_amt = Math.max(0.0, (this.s_collapse - 0.5) * 2.0);
+            this.flutter_acc = this.slide(this.noise(), this.flutter_acc, 800, 800); let flutter = this.flutter_acc * crinkle_amt * 250;
+            let v34_mix = v3_out + v4_out; this.crinkle_del.write(v34_mix); let live_crinkle = this.crinkle_del.read(300 + flutter, "spline");
+            let t1 = this.rev1.read(2053, "linear"); let t2 = this.rev2.read(4517, "linear"); this.rev1.write(live_crinkle + (t2 * 0.85) + ouroboros_feed); this.rev2.write(live_crinkle + (t1 * 0.85) + ouroboros_feed); let raw_halo = (t1 + t2) * 0.5;
+            let breath_cutoff = Math.max(0.001, Math.min(1.0, 0.01 + (this.vactrol_state * halo_amt * 1.5))); this.halo_lp = (this.halo_lp * (1 - breath_cutoff)) + (raw_halo * breath_cutoff);
+            let void_total = (live_crinkle * (1 - halo_amt)) + (this.halo_lp * halo_amt);
+            let tumble_amt = Math.max(0.0, (this.s_liquefaction - 0.5) * 2.0); let delay_in = (void_total * this.s_liquefaction);
+            let shear_L = 1.0 - (this.s_shear * 0.15); let shear_R = 1.0 + (this.s_shear * 0.15);
+            let safe_base_hz = Math.max(0.001, base_hz); let base_time_L = (0.75 / safe_base_hz) * sr * shear_L; let base_time_R = (0.333 / safe_base_hz) * sr * shear_R;
+            if(this.sag_off_L === undefined) this.sag_off_L = 0; if(this.sag_off_R === undefined) this.sag_off_R = 0;
+            this.sag_off_L = this.slide(this.vactrol_state * tumble_amt * sr * 0.04, this.sag_off_L, 2000, 20000); this.sag_off_R = this.slide(this.vactrol_state * tumble_amt * sr * 0.06, this.sag_off_R, 2000, 20000);
+            let read_time_L = base_time_L + this.sag_off_L + doppler_sag; let read_time_R = base_time_R + this.sag_off_R + (doppler_sag * 1.2);
+            let tap_L_raw = this.del_L.read(read_time_L, "spline"); let tap_R_raw = this.del_R.read(read_time_R, "spline");
+            this.last_tap_L = tap_L_raw; this.last_tap_R = tap_R_raw;
+            let damp_coeff = 1.0 - (tumble_amt * 0.85); this.damp_L = (this.damp_L * damp_coeff) + (tap_L_raw * (1 - damp_coeff)); this.damp_R = (this.damp_R * damp_coeff) + (tap_R_raw * (1 - damp_coeff));
+            let sat_L = Math.tanh(this.damp_L * (1.0 + tumble_amt * 1.5)); let sat_R = Math.tanh(this.damp_R * (1.0 + tumble_amt * 1.5));
+            this.del_L.write(delay_in + (sat_L * 0.45)); this.del_R.write(delay_in + (sat_R * 0.45));
+            let tap_L = sat_L * this.s_liquefaction; let tap_R = sat_R * this.s_liquefaction;
+            let sliced_void = void_total * chop_mix; let sliced_tap_L = tap_L * chop_mix; let sliced_tap_R = tap_R * chop_mix;
+            let mix_base_L = (tectonic_global_sum + sliced_void + sliced_tap_L) * amp_sag; let mix_base_R = (tectonic_global_sum + sliced_void + sliced_tap_R) * amp_sag;
+            let bus_energy = Math.abs(mix_base_L + mix_base_R) * 0.5; this.opto_state = this.slide(bus_energy, this.opto_state, 400, 8000);
+            let comp_ratio = 1.0 + (this.s_bake * 5.0); let gain_reduction = 1.0 / (1.0 + (this.opto_state * comp_ratio)); let makeup_gain = 1.0 + (this.s_bake * 2.5);
+            let glued_L = mix_base_L * gain_reduction * makeup_gain; let glued_R = mix_base_R * gain_reduction * makeup_gain;
+            let drive_L = glued_L * (1.0 + (this.s_bake * 3.0)); let drive_R = glued_R * (1.0 + (this.s_bake * 3.0));
+            let transformer_L = Math.tanh(drive_L) + (drive_L * drive_L * 0.15 * this.s_bake); let transformer_R = Math.tanh(drive_R) + (drive_R * drive_R * 0.15 * this.s_bake);
+            let out1 = transformer_L - this.dc1_in + 0.995 * this.dc1_out; this.dc1_in = transformer_L; this.dc1_out = out1;
+            let out2 = transformer_R - this.dc2_in + 0.995 * this.dc2_out; this.dc2_in = transformer_R; this.dc2_out = out2;
+            outL[i] = isNaN(out1) ? 0 : out1; outR[i] = isNaN(out2) ? 0 : out2;
+        }
+        this.fc += outL.length;
+        if (this.fc >= 1024) { this.port.postMessage({ type: 'telemetry', envs: [this.last_e1, this.last_e2, this.env3, this.env4] }); this.fc = 0; }
+        return true;
+    }
+}
+registerProcessor('karst-node', KarstProcessor);
+`;
+
+/* ===========================================================================
+   03. STATE & SEQUENCER DATA STRUCTURES
+   =========================================================================== */
+let audioCtx, karstNode, analyzer, scopeData, recNode; let isPlaying = false;
+let presets = JSON.parse(localStorage.getItem('karst_presets_v1')) || {};
+let presetKeys = ['init', ...Object.keys(presets)];
+let currentPresetIdx = 0;
+
+const canvas = document.getElementById('scope'); const ctx = canvas.getContext('2d'); canvas.width = 140; canvas.height = 38;
+
+let scopeMode = 0;
+let seismoHistory = new Array(canvas.width).fill(0);
+let liveEnvs = [0, 0, 0, 0];
+canvas.addEventListener('click', () => { scopeMode = (scopeMode + 1) % 3; });
+
+let seqLength = 16;
+let viewPage = 0;
+let activeTrack = 0;
+let lockMode = false;
+let seqTrigMode = false;
+let editingStep = null;
+let currentPlayStep = 0;
+
+const baseParams = {};
+document.querySelectorAll('.knob-svg').forEach(k => {
+    baseParams[k.id] = parseFloat(k.dataset.val);
+});
+
+const seqTracks = Array.from({ length: 4 }, (_, v) =>
+    Array.from({ length: 64 }, (_, s) => ({
+        trig: (v === 0 && s % 4 === 0) || (v === 1 && s % 8 === 4) || (v === 2 && s % 4 === 2) || (v === 3 && s % 16 === 14),
+        locks: {}
+    }))
+);
+
+/* ===========================================================================
+   04. OLED SCOPE & PARAMETER TELEMETRY
+   =========================================================================== */
+function drawScope() {
+    requestAnimationFrame(drawScope); ctx.fillStyle = '#030403'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (scopeMode === 2) {
+        let strataVal = baseParams['strata'] !== undefined ? baseParams['strata'] : 0.5;
+        let bpm = Math.round(strataVal * 3.5 * 60);
+        ctx.fillStyle = '#4e8f60';
+        ctx.font = 'bold 11px "Courier New", Menlo, monospace';
+        ctx.fillText(bpm > 0 ? `${bpm} BPM` : 'DRONE', 8, 16);
+        ctx.fillStyle = '#6e8277';
+        ctx.font = 'bold 9px "Courier New", Menlo, monospace';
+        ctx.fillText(`STEP ${String(currentPlayStep + 1).padStart(2, '0')} / ${seqLength}`, 8, 31);
+        return;
+    }
+
+    ctx.fillStyle = '#18221d';
+    for (let x = 2; x < canvas.width - 2; x += 4) ctx.fillRect(x, Math.floor(canvas.height * 0.5), 1, 1);
+
+    if (!analyzer || !isPlaying) return;
+    analyzer.getByteTimeDomainData(scopeData);
+
+    if (scopeMode === 0) {
+        ctx.lineWidth = 1.5; ctx.strokeStyle = '#4e8f60'; ctx.beginPath();
+        let sliceWidth = canvas.width * 1.0 / scopeData.length; let x = 0;
+        for(let i = 0; i < scopeData.length; i++) { let v = scopeData[i] / 128.0; let y = v * canvas.height / 2; if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); x += sliceWidth; }
+        ctx.lineTo(canvas.width, canvas.height/2); ctx.stroke();
+    } else if (scopeMode === 1) {
+        let peak = 0;
+        for(let i=0; i<scopeData.length; i++) { let v = Math.abs(scopeData[i] - 128) / 128.0; if(v > peak) peak = v; }
+        seismoHistory.shift(); seismoHistory.push(peak); ctx.fillStyle = '#c45858';
+        for(let x=0; x<canvas.width; x++) { let h = seismoHistory[x] * canvas.height; ctx.fillRect(x, canvas.height - h, 1, h); }
+    }
+}
+drawScope();
+
+function setKnobVisual(knob, val) {
+    val = Math.max(0, Math.min(1, val));
+    knob.dataset.val = val;
+    let angle = -135 + (val * 270);
+    knob.querySelector('.knob-indicator').setAttribute('transform', `rotate(${angle}, 22, 22)`);
+}
+
+function setKnobValue(knob, val, mode = 'user') {
+    val = Math.max(0, Math.min(1, val));
+    setKnobVisual(knob, val);
+
+    if (knob.id === 'seq_drag' || knob.id === 'strata') {
+        baseParams[knob.id] = val;
+        sendParam(knob.id, val);
+        return;
+    }
+
+    if (mode === 'user') {
+        if (editingStep !== null) {
+            seqTracks[activeTrack][editingStep].locks[knob.id] = val;
+            seqTracks[activeTrack][editingStep].trig = true;
+            knob.classList.add('plocked');
+            sendParam(knob.id, val);
+            renderSequencerSteps();
+        } else {
+            baseParams[knob.id] = val;
+            knob.classList.remove('mod-active');
+            sendParam(knob.id, val);
+        }
+    } else if (mode === 'preset') {
+        baseParams[knob.id] = val;
+        sendParam(knob.id, val);
+    } else if (mode === 'seq') {
+        sendParam(knob.id, val);
+    }
+}
+
+function setMuteValue(btn, val) { val = val ? 1 : 0; btn.dataset.val = val; if (val) btn.classList.add('active'); else btn.classList.remove('active'); sendParam(btn.id, val); }
+function sendParam(id, val) { if (karstNode) karstNode.port.postMessage({ id: id, value: val }); }
+function syncAllParams() { document.querySelectorAll('.knob-svg').forEach(knob => { sendParam(knob.id, baseParams[knob.id]); }); document.querySelectorAll('.mute-btn').forEach(btn => { sendParam(btn.id, parseFloat(btn.dataset.val)); }); }
+
+function updateHeaderActivity(id, intensity, r, g, b) {
+    const el = document.getElementById(id); if(!el) return; let i = Math.min(1, intensity * 1.2);
+    el.style.textShadow = 'none';
+    if (i < 0.02) { el.style.color = 'var(--text-dim)'; }
+    else { el.style.color = `rgba(${r}, ${g}, ${b}, ${0.65 + i * 0.35})`; }
+}
+
+/* ===========================================================================
+   05. AUDIO ENGINE INITIALIZATION & INPUT/EXPORT HANDLERS
+   =========================================================================== */
+let isRecording = false; let recBuffersL = []; let recBuffersR = []; let recLength = 0;
+
+async function initAudio() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+    const blob = new Blob([workletString], { type: 'application/javascript' });
+    await audioCtx.audioWorklet.addModule(URL.createObjectURL(blob));
+    karstNode = new AudioWorkletNode(audioCtx, 'karst-node', { outputChannelCount: [2] });
+    karstNode.port.onmessage = e => {
+        if (e.data.type === 'telemetry') {
+            const [e1, e2, e3, e4] = e.data.envs;
+            liveEnvs = [e1, e2, e3, e4];
+            updateHeaderActivity('hdr-v1', e1, 166, 122, 60);
+            updateHeaderActivity('hdr-v2', e2, 140, 150, 144);
+            updateHeaderActivity('hdr-v3', e3, 156, 163, 82);
+            updateHeaderActivity('hdr-v4', e4, 72, 126, 158);
+        } else if (e.data.type === 'seq_tick') {
+            advanceSequencer();
+        }
+    };
+
+    analyzer = audioCtx.createAnalyser(); analyzer.fftSize = 512; scopeData = new Uint8Array(analyzer.frequencyBinCount);
+
+    recNode = audioCtx.createScriptProcessor(4096, 2, 2);
+    recNode.onaudioprocess = function(e) {
+        if (!isRecording) return;
+        let inL = e.inputBuffer.getChannelData(0); let inR = e.inputBuffer.getChannelData(1);
+        recBuffersL.push(new Float32Array(inL)); recBuffersR.push(new Float32Array(inR)); recLength += inL.length;
+    };
+
+    karstNode.connect(analyzer); analyzer.connect(audioCtx.destination);
+    karstNode.connect(recNode); recNode.connect(audioCtx.destination);
+
+    isPlaying = true; document.getElementById('btn-activate').classList.add('active'); syncAllParams();
+}
+
+document.querySelectorAll('.knob-svg').forEach(knob => {
+    let isDragging = false, startY, startVal;
+    setKnobVisual(knob, baseParams[knob.id]);
+    knob.addEventListener('pointerdown', e => {
+        isDragging = true; startY = e.clientY; startVal = parseFloat(knob.dataset.val);
+        knob.setPointerCapture(e.pointerId); e.preventDefault();
+    });
+    window.addEventListener('pointermove', e => {
+        if(!isDragging) return;
+        let delta = (startY - e.clientY) * 0.005;
+        setKnobValue(knob, startVal + delta, 'user');
+    });
+    window.addEventListener('pointerup', e => {
+        if(isDragging) { isDragging = false; try { knob.releasePointerCapture(e.pointerId); } catch(err){} }
+    });
+});
+document.querySelectorAll('.mute-btn').forEach(btn => { btn.addEventListener('click', () => { let current = parseFloat(btn.dataset.val); setMuteValue(btn, current === 0 ? 1 : 0); }); });
+
+document.getElementById('btn-activate').addEventListener('click', (e) => {
+    if (!audioCtx) { initAudio(); } else if (audioCtx.state === 'running') { audioCtx.suspend(); isPlaying = false; e.target.classList.remove('active'); } else { audioCtx.resume(); isPlaying = true; e.target.classList.add('active'); }
+});
+document.getElementById('btn-scatter').addEventListener('click', () => {
+    document.querySelectorAll('.knob-svg').forEach(knob => {
+        if (knob.id !== 'seq_drag') setKnobValue(knob, Math.random(), 'user');
+    });
+});
+
+let isDrifting = false;
+document.getElementById('btn-drift').addEventListener('click', (e) => { isDrifting = !isDrifting; e.target.classList.toggle('active', isDrifting); });
+setInterval(() => {
+    if(!isDrifting || !isPlaying || editingStep !== null) return;
+    document.querySelectorAll('.knob-svg').forEach(knob => {
+        if (knob.id !== 'seq_drag') {
+            let v = baseParams[knob.id] + (Math.random() - 0.5) * 0.002;
+            setKnobValue(knob, v, 'preset');
+        }
+    });
+}, 50);
+
+/* Custom ASCII A/B Crossfader */
+let stateA = null, stateB = null;
+const abScrubEl = document.getElementById('ab-scrub');
+function renderAbBar(mix) {
+    const cells = 8;
+    const pos = Math.max(0, Math.min(cells - 1, Math.round(mix * (cells - 1))));
+    let bar = '';
+    for (let i = 0; i < cells; i++) bar += (i === pos) ? '■' : '░';
+    abScrubEl.textContent = `[${bar}]`;
+}
+document.getElementById('btn-a').addEventListener('click', (e) => {
+    stateA = { ...baseParams };
+    e.target.classList.add('active');
+    document.getElementById('btn-b').classList.remove('active');
+    renderAbBar(0);
+});
+document.getElementById('btn-b').addEventListener('click', (e) => {
+    stateB = { ...baseParams };
+    e.target.classList.add('active');
+    document.getElementById('btn-a').classList.remove('active');
+    renderAbBar(1);
+});
+
+let isAbDragging = false;
+function scrubAb(clientX) {
+    if (!stateA || !stateB) return;
+    const rect = abScrubEl.getBoundingClientRect();
+    const mix = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
+    renderAbBar(mix);
+    document.querySelectorAll('.knob-svg').forEach(k => {
+        if (k.id !== 'seq_drag') setKnobValue(k, stateA[k.id] * (1 - mix) + stateB[k.id] * mix, 'preset');
+    });
+}
+abScrubEl.addEventListener('pointerdown', (e) => { e.preventDefault(); isAbDragging = true; scrubAb(e.clientX); try { abScrubEl.setPointerCapture(e.pointerId); } catch (_) {} });
+abScrubEl.addEventListener('pointermove', (e) => { if (isAbDragging) scrubAb(e.clientX); });
+abScrubEl.addEventListener('pointerup', (e) => { isAbDragging = false; try { abScrubEl.releasePointerCapture(e.pointerId); } catch (_) {} });
+
+document.getElementById('btn-rec').addEventListener('click', (e) => {
+    if(!audioCtx) return;
+    if (!isRecording) { isRecording = true; recBuffersL = []; recBuffersR = []; recLength = 0; e.target.classList.add('active-red'); }
+    else { isRecording = false; e.target.classList.remove('active-red'); exportWAV(); }
+});
+
+function exportWAV() {
+    let interleaved = new Float32Array(recLength * 2); let offset = 0;
+    for (let i = 0; i < recBuffersL.length; i++) { let bufL = recBuffersL[i]; let bufR = recBuffersR[i]; for (let j = 0; j < bufL.length; j++) { interleaved[offset++] = bufL[j]; interleaved[offset++] = bufR[j]; } }
+    let buffer = new ArrayBuffer(44 + interleaved.length * 2); let view = new DataView(buffer);
+    let writeString = function(view, offset, string) { for (let i=0; i<string.length; i++) view.setUint8(offset + i, string.charCodeAt(i)); };
+    writeString(view, 0, 'RIFF'); view.setUint32(4, 36 + interleaved.length * 2, true); writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 2, true);
+    view.setUint32(24, audioCtx.sampleRate, true); view.setUint32(28, audioCtx.sampleRate * 4, true); view.setUint16(32, 4, true); view.setUint16(34, 16, true);
+    writeString(view, 36, 'data'); view.setUint32(40, interleaved.length * 2, true);
+    let o = 44; for (let i = 0; i < interleaved.length; i++, o += 2) { let s = Math.max(-1, Math.min(1, interleaved[i])); view.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true); }
+    let blob = new Blob([view], { type: 'audio/wav' }); let url = URL.createObjectURL(blob); let a = document.createElement('a'); a.style.display = 'none'; a.href = url;
+    let pName = presetKeys[currentPresetIdx] || 'init'; a.download = `KARST_${pName === 'init' ? 'RAW' : pName.replace(' ', '_')}.wav`;
+    document.body.appendChild(a); a.click(); URL.revokeObjectURL(url);
+}
+
+/* Custom Hardware Preset Cycle-Box */
+const words1 = ["OBSIDIAN", "TECTONIC", "SHADOW", "ABYSSAL", "CALDERA", "PYROCLASTIC", "MANTLE", "SUBDUCTION"];
+const words2 = ["FRACTURE", "TREMOR", "VOID", "SLIP", "CORE", "VEIN", "CRUST", "ECHO"];
+const presetLabelEl = document.getElementById('preset-label');
+
+function refreshPresetList() {
+    presetKeys = ['init', ...Object.keys(presets)];
+    if (currentPresetIdx >= presetKeys.length) currentPresetIdx = 0;
+    const key = presetKeys[currentPresetIdx];
+    presetLabelEl.textContent = key === 'init' ? 'INITIALIZED' : key;
+}
+refreshPresetList();
+
+function loadPresetByIndex(idx) {
+    currentPresetIdx = (idx + presetKeys.length) % presetKeys.length;
+    const key = presetKeys[currentPresetIdx];
+    presetLabelEl.textContent = key === 'init' ? 'INITIALIZED' : key;
+    if (key === 'init') return;
+    let state = presets[key];
+    if (state) {
+        for (let k in state) {
+            let el = document.getElementById(k);
+            if (el) {
+                if (el.classList.contains('knob-svg')) setKnobValue(el, state[k], 'preset');
+                else if (el.classList.contains('mute-btn')) setMuteValue(el, state[k]);
+            }
+        }
+    }
+}
+
+document.getElementById('btn-preset-prev').addEventListener('click', () => loadPresetByIndex(currentPresetIdx - 1));
+document.getElementById('btn-preset-next').addEventListener('click', () => loadPresetByIndex(currentPresetIdx + 1));
+presetLabelEl.addEventListener('click', () => loadPresetByIndex(currentPresetIdx + 1));
+
+document.getElementById('btn-dump').addEventListener('click', () => {
+    let w1 = words1[Math.floor(Math.random() * words1.length)]; let w2 = words2[Math.floor(Math.random() * words2.length)]; let name = w1 + " " + w2;
+    let state = { ...baseParams }; document.querySelectorAll('.mute-btn').forEach(b => { state[b.id] = parseFloat(b.dataset.val); });
+    presets[name] = state; localStorage.setItem('karst_presets_v1', JSON.stringify(presets)); refreshPresetList();
+    currentPresetIdx = presetKeys.indexOf(name);
+    presetLabelEl.textContent = name;
+});
+
+/* ===========================================================================
+   06. LITHIC SEQUENCER & PARAMETER LOCK ENGINE
+   =========================================================================== */
+const stepsContainer = document.getElementById('seq-steps');
+
+const voiceParamMap = [
+    ['v1_mass', 'v1_matter', 'v1_clock', 'v1_fluid', 'v1_gravity', 'v1_vol'],
+    ['v2_mass', 'v2_matter', 'v2_clock', 'v2_fluid', 'v2_gravity', 'v2_vol'],
+    ['v3_mass', 'v3_matter', 'v3_clock', 'v3_fluid', 'v3_gravity', 'v3_vol'],
+    ['v4_mass', 'v4_matter', 'v4_clock', 'v4_fluid', 'v4_gravity', 'v4_vol']
+];
+const globalLockableParams = ['shear', 'erosion', 'bake', 'liquefaction', 'collapse'];
+
+function syncKnobsToEditState() {
+    document.querySelectorAll('.knob-svg').forEach(k => {
+        if (k.id === 'seq_drag' || k.id === 'strata') return;
+        k.classList.remove('plocked');
+        if (editingStep !== null) {
+            const locks = seqTracks[activeTrack][editingStep].locks;
+            if (locks[k.id] !== undefined) {
+                k.classList.add('plocked');
+                setKnobVisual(k, locks[k.id]);
+            } else {
+                setKnobVisual(k, baseParams[k.id]);
+            }
+        } else {
+            setKnobVisual(k, baseParams[k.id]);
+            sendParam(k.id, baseParams[k.id]);
+        }
+    });
+}
+
+function renderSequencerSteps() {
+    stepsContainer.innerHTML = '';
+    const offset = viewPage * 16;
+    for (let i = 0; i < 16; i++) {
+        const stepIdx = offset + i;
+        const stepObj = seqTracks[activeTrack][stepIdx];
+        const btn = document.createElement('div');
+        btn.className = 'step-btn';
+        btn.dataset.vcolor = activeTrack;
+        if (stepObj.trig) btn.classList.add('trig-on');
+        if (Object.keys(stepObj.locks).length > 0) btn.classList.add('has-plock');
+        if (stepIdx === currentPlayStep && isPlaying) btn.classList.add('playhead');
+        if (stepIdx === editingStep) btn.classList.add('editing');
+
+        btn.innerHTML = `<span class="step-num">${stepIdx + 1}</span><div class="step-led"></div><div class="step-plock-ind"></div>`;
+
+        btn.addEventListener('contextmenu', e => {
+            e.preventDefault();
+            if (editingStep === stepIdx) {
+                editingStep = null;
+                lockMode = false;
+            } else {
+                editingStep = stepIdx;
+                lockMode = true;
+            }
+            document.getElementById('btn-lock-mode').classList.toggle('active', lockMode);
+            syncKnobsToEditState();
+            renderSequencerSteps();
+        });
+
+        btn.addEventListener('click', e => {
+            if (lockMode || e.shiftKey) {
+                if (editingStep === stepIdx) {
+                    editingStep = null;
+                    if (!lockMode) document.getElementById('btn-lock-mode').classList.remove('active');
+                } else {
+                    editingStep = stepIdx;
+                    lockMode = true;
+                    document.getElementById('btn-lock-mode').classList.add('active');
+                }
+                syncKnobsToEditState();
+            } else {
+                stepObj.trig = !stepObj.trig;
+            }
+            renderSequencerSteps();
+        });
+
+        btn.addEventListener('dblclick', () => {
+            stepObj.locks = {};
+            syncKnobsToEditState();
+            renderSequencerSteps();
+        });
+
+        stepsContainer.appendChild(btn);
+    }
+}
+renderSequencerSteps();
+
+document.querySelectorAll('.v-sel').forEach(btn => {
+    btn.addEventListener('click', e => {
+        document.querySelectorAll('.v-sel').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        activeTrack = parseInt(e.target.dataset.v);
+        syncKnobsToEditState();
+        renderSequencerSteps();
+    });
+});
+
+document.getElementById('btn-lock-mode').addEventListener('click', e => {
+    lockMode = !lockMode;
+    e.target.classList.toggle('active', lockMode);
+    if (lockMode && editingStep === null) {
+        const offset = viewPage * 16;
+        let firstTrig = offset;
+        for (let i = 0; i < 16; i++) {
+            if (seqTracks[activeTrack][offset + i].trig) { firstTrig = offset + i; break; }
+        }
+        editingStep = firstTrig;
+    } else if (!lockMode) {
+        editingStep = null;
+    }
+    syncKnobsToEditState();
+    renderSequencerSteps();
+});
+
+document.getElementById('btn-seq-trig').addEventListener('click', e => {
+    seqTrigMode = !seqTrigMode;
+    e.target.classList.toggle('active', seqTrigMode);
+    e.target.textContent = seqTrigMode ? 'SEQ TRIG: ON' : 'SEQ TRIG: OFF';
+    sendParam('seq_trig_mode', seqTrigMode ? 1 : 0);
+});
+
+document.getElementById('btn-page').addEventListener('click', e => {
+    seqLength = seqLength === 16 ? 32 : (seqLength === 32 ? 64 : 16);
+    e.target.textContent = `LEN: ${seqLength}`;
+    const maxPages = seqLength / 16;
+    if (viewPage >= maxPages) viewPage = 0;
+    document.getElementById('btn-view-page').textContent = `PG: ${viewPage + 1}/${maxPages}`;
+    renderSequencerSteps();
+});
+
+document.getElementById('btn-view-page').addEventListener('click', e => {
+    const maxPages = seqLength / 16;
+    viewPage = (viewPage + 1) % maxPages;
+    e.target.textContent = `PG: ${viewPage + 1}/${maxPages}`;
+    renderSequencerSteps();
+});
+
+document.getElementById('btn-clr-locks').addEventListener('click', () => {
+    for (let s = 0; s < 64; s++) seqTracks[activeTrack][s].locks = {};
+    syncKnobsToEditState();
+    renderSequencerSteps();
+});
+
+function applyTargetParam(kId, targetVal, isLocked) {
+    sendParam(kId, targetVal);
+    if (editingStep === null) {
+        const knobEl = document.getElementById(kId);
+        if (knobEl) {
+            setKnobVisual(knobEl, targetVal);
+            knobEl.classList.toggle('mod-active', isLocked);
+        }
+    }
+}
+
+function advanceSequencer() {
+    currentPlayStep = (currentPlayStep + 1) % seqLength;
+
+    for (let v = 0; v < 4; v++) {
+        const stepObj = seqTracks[v][currentPlayStep];
+        if (stepObj.trig) {
+            if (seqTrigMode && karstNode) {
+                karstNode.port.postMessage({ type: 'ext_trig', v: v });
+            }
+            for (let pId of voiceParamMap[v]) {
+                if (stepObj.locks[pId] !== undefined) {
+                    applyTargetParam(pId, stepObj.locks[pId], true);
+                } else {
+                    applyTargetParam(pId, baseParams[pId], false);
+                }
+            }
+        } else {
+            if (!seqTrigMode) {
+                for (let pId of voiceParamMap[v]) {
+                    applyTargetParam(pId, baseParams[pId], false);
+                }
+            }
+        }
+    }
+
+    for (let gId of globalLockableParams) {
+        let lockedVal = undefined;
+        for (let v = 0; v < 4; v++) {
+            const stepObj = seqTracks[v][currentPlayStep];
+            if (stepObj.trig && stepObj.locks[gId] !== undefined) {
+                lockedVal = stepObj.locks[gId];
+            }
+        }
+        if (lockedVal !== undefined) {
+            applyTargetParam(gId, lockedVal, true);
+        } else {
+            applyTargetParam(gId, baseParams[gId], false);
+        }
+    }
+
+    const stepButtons = stepsContainer.children;
+    const offset = viewPage * 16;
+    for (let i = 0; i < 16; i++) {
+        if (stepButtons[i]) {
+            stepButtons[i].classList.toggle('playhead', (offset + i) === currentPlayStep);
+        }
+    }
+}
+
+/* ===========================================================================
+   07. ASCII HORIZON VISUALISER
+   =========================================================================== */
+const asciiBed = document.getElementById('ascii-bed');
+let asciiPhase = 0;
+
+function updateAsciiColorGradient() {
+    const bake = baseParams['bake'] || 0;
+    const baseCols = [
+        [166, 122, 60],
+        [140, 150, 144],
+        [156, 163, 82],
+        [72, 126, 158]
+    ];
+
+    const stops = [];
+    for (let v = 0; v < 4; v++) {
+        const pList = voiceParamMap[v];
+        let dialSum = 0;
+        for (let p of pList) dialSum += (baseParams[p] || 0);
+        let dialNorm = dialSum / pList.length;
+        let env = Math.min(1, liveEnvs[v] * 1.3);
+
+        let colorWeight = Math.min(1, dialNorm * 1.15 + env * 0.45);
+        let r = 78 * (1 - colorWeight) + baseCols[v][0] * colorWeight;
+        let g = 143 * (1 - colorWeight) + baseCols[v][1] * colorWeight;
+        let b = 96 * (1 - colorWeight) + baseCols[v][2] * colorWeight;
+
+        if (bake > 0.01) {
+            let heat = Math.min(1, bake * 1.1);
+            r = r * (1 - heat) + 196 * heat;
+            g = g * (1 - heat) + (88 + env * 65) * heat;
+            b = b * (1 - heat) + (88 + env * 45) * heat;
+        }
+
+        let boost = 0.72 + env * 0.45 + dialNorm * 0.2;
+        r = Math.min(230, Math.round(r * boost));
+        g = Math.min(227, Math.round(g * boost));
+        b = Math.min(218, Math.round(b * boost));
+
+        stops.push(`rgb(${r}, ${g}, ${b})`);
+    }
+
+    asciiBed.style.backgroundImage = `linear-gradient(90deg, ${stops[0]} 12%, ${stops[1]} 38%, ${stops[2]} 64%, ${stops[3]} 88%)`;
+    asciiBed.style.filter = 'none';
+}
+
+function renderAsciiHorizon() {
+    let totalTrigs = 0;
+    let totalLocks = 0;
+    for (let v = 0; v < 4; v++) {
+        for (let s = 0; s < seqLength; s++) {
+            if (seqTracks[v][s].trig) totalTrigs++;
+            totalLocks += Object.keys(seqTracks[v][s].locks).length;
+        }
+    }
+
+    updateAsciiColorGradient();
+
+    const density = Math.min(1.0, (totalTrigs * 0.4 + totalLocks * 2.2) / 36.0);
+    const envEnergy = (liveEnvs[0] + liveEnvs[1] + liveEnvs[2] + liveEnvs[3]) * 0.35;
+    asciiPhase += 0.04 + envEnergy * 0.25;
+
+    const cols = 152;
+    const rows = 5;
+    const boulderChars = " .,:;+*?%S#&80@";
+    let out = "";
+
+    for (let r = 0; r < rows; r++) {
+        let line = "";
+        for (let c = 0; c < cols; c++) {
+            let nx = c / cols;
+            let ny = r / (rows - 1);
+
+            if (density < 0.15) {
+                let hash = Math.sin((c + Math.floor(asciiPhase * 3)) * 12.9898 + r * 78.233) * 43758.5453;
+                let rand = hash - Math.floor(hash);
+                if (rand > 0.965 - (density * 0.2) - (envEnergy * 0.05)) {
+                    line += rand > 0.985 ? "+" : (rand > 0.975 ? ":" : ".");
+                } else {
+                    line += " ";
+                }
+            } else {
+                let field = 0;
+                for (let b = 0; b < 4; b++) {
+                    let bx = 0.14 + b * 0.24 + Math.sin(asciiPhase * 0.3 + b * 2.1) * 0.03;
+                    let by = 0.65 - (liveEnvs[b] * 0.3);
+                    let dx = (nx - bx) * 3.8;
+                    let dy = (ny - by) * 1.1;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+                    let crag = Math.sin(c * 0.45 + r * 1.7 + b) * 0.12 + Math.cos(c * 0.18 - asciiPhase * 0.5) * 0.08;
+                    let radius = (0.12 + density * 0.38) * (1.0 + liveEnvs[b] * 0.25);
+                    let contrib = Math.max(0, 1.0 - (dist + crag) / radius);
+                    field = Math.max(field, contrib);
+                }
+
+                let grit = (Math.sin(c * 19.1 + r * 31.7 + Math.floor(asciiPhase * 2)) * 43758.5453) % 1;
+                if (field > 0.04) {
+                    let idx = Math.min(boulderChars.length - 1, Math.floor(field * boulderChars.length));
+                    line += boulderChars[idx];
+                } else if (Math.abs(grit) > 0.94 - density * 0.06) {
+                    line += ".";
+                } else {
+                    line += " ";
+                }
+            }
+        }
+        out += line + (r < rows - 1 ? "\n" : "");
+    }
+    asciiBed.textContent = out;
+}
+
+setInterval(renderAsciiHorizon, 60);
+renderAsciiHorizon();
+</script>
+</body>
+</html>

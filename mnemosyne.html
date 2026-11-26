@@ -1,0 +1,2423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>MNEMOSYNE // SHATTER ENGINE</title>
+<style>
+  /* =========================================================================
+     01. DESIGN TOKENS & BASE RESET
+     ========================================================================= */
+  :root {
+    --bg: #050605;
+    --panel: rgba(9, 11, 10, 0.94);
+    --well: #040504;
+    --border-main: #5d786a;
+    --border-inner: #27342d;
+    --col-div: rgba(93, 120, 106, 0.28);
+
+    --c-green: #4e8f60;
+    --c-amber: #a67a3c;
+    --c-cyan: #487e9e;
+    --c-red: #c45858;
+    --c-green-dim: #4e8f60;
+    --c-amber-dim: #a67a3c;
+    --c-cyan-dim: #487e9e;
+    --c-red-dim: #9e4b4b;
+    --vellum: #e6e3da;
+    --text-main: #c7d1cc;
+    --text-dim: #6e8277;
+    --mono: 'Courier New', Menlo, Monaco, Consolas, monospace;
+  }
+
+  * {
+    box-sizing: border-box;
+    border-radius: 0;
+  }
+
+  html, body, #chassis, .column, .oled-container, .knob-container, #seq-shelf,
+  button, .ascii-cell, .lane-tag, .lane-dice, .lane-len-tag, .mosaic-block,
+  .ascii-scrub, .cycle-box {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  html, body {
+    background-color: var(--bg);
+    color: var(--text-main);
+    font-family: var(--mono);
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+
+  /* =========================================================================
+     02. CHASSIS & UPPER DECK LAYOUT
+     ========================================================================= */
+  #chassis {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--panel);
+    border: 1px solid var(--border-main);
+    outline: 1px solid var(--border-inner);
+    outline-offset: -5px;
+    padding: 10px 8px 9px 8px;
+    box-shadow: inset 0 0 44px rgba(0, 0, 0, 0.94), 0 16px 48px rgba(0, 0, 0, 0.92);
+    transform-origin: center center;
+    width: 980px;
+  }
+
+  #chassis::before,
+  #chassis::after {
+    position: absolute;
+    font-family: var(--mono);
+    font-size: 10px;
+    line-height: 1;
+    color: var(--border-main);
+    pointer-events: none;
+  }
+  #chassis::before { content: '◈'; top: 2px; left: 3px; }
+  #chassis::after  { content: '◈'; top: 2px; right: 3px; }
+
+  .upper-deck {
+    display: grid;
+    grid-template-columns: 34px 1fr 34px;
+    width: 100%;
+    height: 416px;
+  }
+
+  .vertical-text {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    text-align: center;
+    font-size: 9.5px;
+    font-weight: bold;
+    letter-spacing: 3.5px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    width: 34px;
+    height: 416px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .panel-core {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-left: 1px solid var(--col-div);
+    border-right: 1px solid var(--col-div);
+    padding: 10px 0;
+    width: 100%;
+    height: 416px;
+  }
+
+  .column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border-right: 1px solid var(--col-div);
+    padding: 0 10px;
+    position: relative;
+    min-width: 0;
+  }
+  .column:last-child {
+    border-right: none;
+  }
+
+  .col-header {
+    width: 100%;
+    font-size: 9.5px;
+    font-weight: bold;
+    letter-spacing: 1.8px;
+    margin-bottom: 12px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid var(--border-inner);
+    text-transform: uppercase;
+    color: var(--text-dim);
+    height: 18px;
+    text-align: center;
+    transition: color 0.2s ease;
+  }
+  .col-header::before { content: '· '; color: var(--border-main); }
+  .col-header::after  { content: ' ·'; color: var(--border-main); }
+
+  /* =========================================================================
+     03. SYSTEM & OLED MODULE
+     ========================================================================= */
+  .oled-container {
+    width: 100%;
+    background: var(--well);
+    border: 1px solid var(--border-inner);
+    margin-bottom: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 5px;
+    gap: 4px;
+    box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.85);
+  }
+
+  #scope {
+    width: 100%;
+    height: 36px;
+    background: #030403;
+    border: 1px solid var(--border-inner);
+    cursor: pointer;
+    display: block;
+    image-rendering: pixelated;
+  }
+
+  .oled-row {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    gap: 3px;
+    align-items: center;
+  }
+
+  .oled-btn {
+    flex: 1;
+    background: #080a09;
+    border: 1px solid #35453c;
+    color: var(--text-main);
+    font-family: var(--mono);
+    font-size: 8.5px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    padding: 3.5px 2px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: 0.1s;
+    text-align: center;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .oled-btn:hover {
+    background: #151c18;
+    border-color: var(--border-main);
+    color: var(--vellum);
+  }
+  .oled-btn.active {
+    background: var(--vellum);
+    color: #050605;
+    border-color: var(--vellum);
+  }
+  .oled-btn.active-red {
+    background: var(--c-red);
+    color: #050605;
+    border-color: var(--c-red);
+  }
+
+  .oled-btn.freeze {
+    width: 100%;
+    background: #080b0a;
+    border-color: var(--c-cyan);
+    color: var(--c-cyan);
+    font-weight: bold;
+    font-size: 9.5px;
+    padding: 4px 0;
+    letter-spacing: 1.4px;
+  }
+  .oled-btn.freeze:hover {
+    background: rgba(72, 126, 158, 0.16);
+  }
+  .oled-btn.freeze.active {
+    background: var(--c-cyan);
+    color: #050605;
+  }
+
+  /* Custom Hardware A/B Scrubber & Preset Cycle-Box */
+  .ab-row {
+    display: grid;
+    grid-template-columns: 22px 1fr 22px;
+    align-items: center;
+    width: 100%;
+    gap: 3px;
+  }
+  .ascii-scrub {
+    height: 18px;
+    background: var(--well);
+    border: 1px solid #35453c;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 8.5px;
+    letter-spacing: 0.5px;
+    color: var(--vellum);
+    cursor: ew-resize;
+    touch-action: none;
+    overflow: hidden;
+  }
+
+  .cycle-box {
+    display: grid;
+    grid-template-columns: 18px 1fr 18px;
+    align-items: stretch;
+    width: 100%;
+    background: var(--well);
+    border: 1px solid #35453c;
+    height: 20px;
+  }
+  .cycle-step {
+    background: #080a09;
+    border: none;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cycle-step:first-child { border-right: 1px solid var(--border-inner); }
+  .cycle-step:last-child  { border-left: 1px solid var(--border-inner); }
+  .cycle-step:hover {
+    background: #151c18;
+    color: var(--vellum);
+  }
+  .cycle-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    font-size: 8px;
+    font-weight: bold;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    letter-spacing: 0.4px;
+  }
+  .cycle-label:hover {
+    color: var(--vellum);
+  }
+
+  /* =========================================================================
+     04. MACHINED ROTARY POTENTIOMETERS
+     ========================================================================= */
+  .knob-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 14px;
+    width: 100%;
+  }
+  .knob-row {
+    display: flex;
+    justify-content: space-evenly;
+    width: 100%;
+    margin-bottom: 14px;
+  }
+  .col-sys .knob-row { margin-bottom: 6px; }
+  .col-sys .knob-group { margin-bottom: 2px; }
+
+  .knob-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+  }
+  .knob-label {
+    font-size: 8px;
+    font-weight: bold;
+    margin-bottom: 4px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .knob-svg {
+    width: 42px;
+    height: 42px;
+    cursor: ns-resize;
+    overflow: visible;
+    filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.75));
+    touch-action: none;
+  }
+  .knob-ticks {
+    stroke: #36453d;
+    stroke-width: 1.2px;
+  }
+  .knob-bg {
+    fill: #090c0a;
+    stroke-width: 1.8px;
+  }
+  .knob-cap {
+    fill: #111513;
+    stroke: #28332d;
+    stroke-width: 1px;
+  }
+  .knob-indicator {
+    stroke: var(--vellum);
+    stroke-width: 2px;
+    stroke-linecap: butt;
+  }
+  .knob-svg.plocked .knob-indicator {
+    stroke: var(--c-red);
+    stroke-width: 2.5px;
+  }
+  .knob-svg.mod-active .knob-indicator {
+    stroke: var(--c-amber);
+  }
+
+  .col-sys .knob-bg { stroke: var(--c-green); }   .col-sys .knob-label { color: var(--c-green); }
+  .col-pat .knob-bg { stroke: var(--c-amber); }   .col-pat .knob-label { color: var(--c-amber); }
+  .col-tes .knob-bg { stroke: var(--c-cyan); }    .col-tes .knob-label { color: var(--c-cyan); }
+  .col-des .knob-bg { stroke: var(--c-red-dim); } .col-des .knob-label { color: var(--c-red-dim); }
+
+  /* =========================================================================
+     05. SHATTER MATRIX SEQUENCER & MOSAIC CANOPY
+     ========================================================================= */
+  #seq-shelf {
+    border-top: 1px solid var(--col-div);
+    margin: 0;
+    padding: 8px 10px 6px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background: rgba(4, 5, 4, 0.85);
+    width: 100%;
+    position: relative;
+    z-index: 2;
+  }
+
+  .seq-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+    white-space: nowrap;
+  }
+
+  .seq-section {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .seq-title {
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 1.6px;
+    color: var(--vellum);
+    margin-right: 4px;
+  }
+
+  .seq-btn {
+    background: #080a09;
+    border: 1px solid #35453c;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 8px;
+    font-weight: bold;
+    letter-spacing: 0.6px;
+    padding: 3px 6px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: 0.1s;
+    white-space: nowrap;
+  }
+  .seq-btn:hover {
+    background: #151c18;
+    border-color: var(--border-main);
+    color: var(--vellum);
+  }
+  .seq-btn.active {
+    background: var(--vellum);
+    color: #050605;
+    border-color: var(--vellum);
+  }
+
+  .seq-btn.v-sel[data-v="0"].active { background: var(--c-green); border-color: var(--c-green); color: #050605; }
+  .seq-btn.v-sel[data-v="1"].active { background: var(--c-amber); border-color: var(--c-amber); color: #050605; }
+  .seq-btn.v-sel[data-v="2"].active { background: var(--c-cyan);  border-color: var(--c-cyan);  color: #050605; }
+  .seq-btn.v-sel[data-v="3"].active { background: var(--c-red);   border-color: var(--c-red);   color: #050605; }
+
+  #btn-seq-on.active {
+    background: var(--c-green);
+    border-color: var(--c-green);
+    color: #050605;
+  }
+  #btn-mod-mode.active {
+    background: var(--c-red);
+    border-color: var(--c-red);
+    color: #050605;
+  }
+  #btn-hold-mode.active {
+    background: var(--c-amber);
+    border-color: var(--c-amber);
+    color: #050605;
+  }
+  #btn-len {
+    cursor: ns-resize;
+    touch-action: none;
+  }
+
+  /* =========================================================================
+     06. 4-LANE MATRIX & 8-BLOCK ASCII MOSAIC BED
+     ========================================================================= */
+  #altar-matrix-wrap {
+    width: 100%;
+    background: var(--well);
+    border: 1px solid var(--border-inner);
+    padding: 5px 8px 4px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.92);
+  }
+
+  .ascii-lanes {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 70px;
+    border-bottom: 1px solid var(--border-inner);
+    padding-bottom: 4px;
+    overflow: hidden;
+  }
+
+  .ascii-lane-row {
+    display: grid;
+    grid-template-columns: 44px repeat(16, 1fr) 38px;
+    align-items: center;
+    height: 15px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0px;
+  }
+  .ascii-lane-row.selected-lane {
+    background: rgba(93, 120, 106, 0.12);
+  }
+
+  .lane-left-ctrl {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-left: 3px;
+  }
+
+  .lane-tag {
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 9.5px;
+    min-width: 18px;
+  }
+
+  .lane-dice {
+    background: #080a09;
+    border: 1px solid #35453c;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 9px;
+    line-height: 11px;
+    padding: 1px 3px;
+    cursor: pointer;
+    transition: 0.1s;
+  }
+  .lane-dice:hover {
+    color: var(--vellum);
+    border-color: var(--border-main);
+    background: #151c18;
+  }
+  .lane-dice.mod-dice {
+    border-color: var(--c-red);
+    color: var(--c-red);
+  }
+
+  .lane-len-tag {
+    font-size: 9px;
+    font-weight: bold;
+    color: var(--text-dim);
+    text-align: right;
+    padding-right: 4px;
+    cursor: ns-resize;
+  }
+
+  .ascii-cell {
+    text-align: center;
+    cursor: pointer;
+    color: #2f3d35;
+    font-weight: bold;
+    height: 15px;
+    line-height: 15px;
+    overflow: hidden;
+    touch-action: none;
+  }
+  .ascii-cell:nth-child(4n+2) {
+    border-left: 1px solid #1b241f;
+  }
+  .ascii-cell:hover {
+    color: var(--vellum);
+    background: rgba(230, 227, 218, 0.06);
+  }
+  .ascii-cell.out-bounds {
+    opacity: 0.18;
+  }
+
+  .ascii-cell.trig-on[data-l="0"] { color: var(--c-green); }
+  .ascii-cell.trig-on[data-l="1"] { color: var(--c-amber); }
+  .ascii-cell.trig-on[data-l="2"] { color: var(--c-cyan); }
+  .ascii-cell.trig-on[data-l="3"] { color: var(--c-red-dim); }
+
+  .ascii-cell.trig-on.has-plock[data-l="0"] { color: var(--vellum); }
+  .ascii-cell.trig-on.has-plock[data-l="1"] { color: var(--vellum); }
+  .ascii-cell.trig-on.has-plock[data-l="2"] { color: var(--vellum); }
+  .ascii-cell.trig-on.has-plock[data-l="3"] { color: var(--c-red); }
+
+  .ascii-cell.playhead {
+    color: var(--vellum) !important;
+    background: rgba(230, 227, 218, 0.14);
+  }
+  .ascii-cell.mod-editing {
+    color: var(--vellum) !important;
+    background: rgba(196, 88, 88, 0.34) !important;
+  }
+
+  #ascii-bed {
+    display: grid;
+    grid-template-columns: 44px repeat(8, 1fr) 38px;
+    align-items: center;
+    height: 74px;
+    width: 100%;
+    margin: 0;
+    padding: 2px 0;
+    overflow: hidden;
+  }
+
+  .mosaic-block {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    line-height: 10px;
+    letter-spacing: 0px;
+    white-space: pre;
+    margin: 0;
+    padding: 0;
+    text-align: center;
+    color: #4e705e;
+    transition: color 0.08s ease;
+  }
+</style>
+</head>
+<body>
+<div id="chassis">
+    <div class="upper-deck">
+        <div class="vertical-text">MNEMOSYNE</div>
+        <div class="panel-core">
+
+            <!-- COLUMN 1: SYSTEM & OLED -->
+            <div class="column col-sys" data-col="sys">
+                <div class="col-header" id="hdr-sys">SYSTEM</div>
+                <div class="oled-container">
+                    <canvas id="scope" title="Toggle Waveform / Seismograph"></canvas>
+                    <div class="oled-row">
+                        <button class="oled-btn" id="btn-activate">ACTIVATE</button>
+                        <button class="oled-btn" id="btn-scatter">SCATTER</button>
+                    </div>
+                    <div class="oled-row">
+                        <button class="oled-btn" id="btn-dump">DUMP</button>
+                        <button class="oled-btn" id="btn-rec">REC</button>
+                        <button class="oled-btn" id="btn-drift">DRIFT</button>
+                    </div>
+                    <div class="ab-row">
+                        <button class="oled-btn" id="btn-a" title="Capture State A">A</button>
+                        <div class="ascii-scrub" id="ab-scrub" title="Drag to Crossfade A / B">[■░░░░░░░]</div>
+                        <button class="oled-btn" id="btn-b" title="Capture State B">B</button>
+                    </div>
+                    <div class="cycle-box" title="Cycle Stored Presets">
+                        <button type="button" class="cycle-step" id="btn-preset-prev">&lt;</button>
+                        <div class="cycle-label" id="preset-label">INITIALIZED</div>
+                        <button type="button" class="cycle-step" id="btn-preset-next">&gt;</button>
+                    </div>
+                    <div class="oled-row">
+                        <button class="oled-btn" id="btn-mic">MIC</button>
+                        <button class="oled-btn" id="btn-file">FILE</button>
+                        <input type="file" id="file-upload" accept=".wav,.mp3,.m4a,.flac,.ogg,.aiff,.aif,audio/*" style="display:none;">
+                    </div>
+                    <button class="oled-btn freeze" id="btn-freeze">FREEZE</button>
+                </div>
+
+                <div class="knob-row">
+                    <div class="knob-container">
+                        <div class="knob-label">FAULT</div>
+                        <svg class="knob-svg" id="fault" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob-label">SEEP</div>
+                        <svg class="knob-svg" id="seep" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-group">
+                    <div class="knob-container">
+                        <div class="knob-label">ANDAMENTO</div>
+                        <svg class="knob-svg" id="andamento" data-val="0.5" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLUMN 2: I. PATINA -->
+            <div class="column col-pat" data-col="pat">
+                <div class="col-header" id="hdr-pat">I. PATINA</div>
+                <div class="knob-group" style="margin-top: 26px;">
+                    <div class="knob-container">
+                        <div class="knob-label">CADENCE</div>
+                        <svg class="knob-svg" id="cadence" data-val="0.5" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-row" style="margin-top: 26px;">
+                    <div class="knob-container">
+                        <div class="knob-label">INDEX</div>
+                        <svg class="knob-svg" id="index" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob-label">EROSION</div>
+                        <svg class="knob-svg" id="erosion" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-group" style="margin-top: 26px;">
+                    <div class="knob-container">
+                        <div class="knob-label">SILICA</div>
+                        <svg class="knob-svg" id="silica" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLUMN 3: II. TESSELLATION -->
+            <div class="column col-tes" data-col="tes">
+                <div class="col-header" id="hdr-tes">II. TESSELLATION</div>
+                <div class="knob-group" style="margin-top: 26px;">
+                    <div class="knob-container">
+                        <div class="knob-label">BLOCK</div>
+                        <svg class="knob-svg" id="block" data-val="0.8" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-row" style="margin-top: 26px;">
+                    <div class="knob-container">
+                        <div class="knob-label">TILE</div>
+                        <svg class="knob-svg" id="tile" data-val="0.5" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob-label">FRAG</div>
+                        <svg class="knob-svg" id="fragment" data-val="0.3" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-group" style="margin-top: 26px;">
+                    <div class="knob-container">
+                        <div class="knob-label">FRIT</div>
+                        <svg class="knob-svg" id="frit" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLUMN 4: III. DESCENT -->
+            <div class="column col-des" data-col="des">
+                <div class="col-header" id="hdr-des">III. DESCENT</div>
+                <div class="knob-group" style="margin-top: 26px;">
+                    <div class="knob-container">
+                        <div class="knob-label">UNDERTOW</div>
+                        <svg class="knob-svg" id="undertow" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-row" style="margin-top: 26px;">
+                    <div class="knob-container">
+                        <div class="knob-label">CANTOR</div>
+                        <svg class="knob-svg" id="cantor" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob-label">LETHE</div>
+                        <svg class="knob-svg" id="lethe" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-group" style="margin-top: 26px;">
+                    <div class="knob-container">
+                        <div class="knob-label">SCATTER</div>
+                        <svg class="knob-svg" id="scatter" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="vertical-text">SHATTER ENGINE</div>
+    </div>
+
+    <!-- SHATTER MATRIX SEQUENCER SHELF -->
+    <div id="seq-shelf">
+        <div class="seq-bar">
+            <div class="seq-section">
+                <span class="seq-title">SHATTER MATRIX</span>
+                <button class="seq-btn v-sel active" data-v="0" title="Lane I: Strata (Buffer Slice Morphology)">I. STRATA</button>
+                <button class="seq-btn v-sel" data-v="1" title="Lane II: Erosion (Grain Window &amp; Dropout)">II. EROSION</button>
+                <button class="seq-btn v-sel" data-v="2" title="Lane III: Silica (Head Balance &amp; Shimmer)">III. SILICA</button>
+                <button class="seq-btn v-sel" data-v="3" title="Lane IV: Lethe (High-Passed BBD &amp; Undertow)">IV. LETHE</button>
+            </div>
+            <div class="seq-section">
+                <button class="seq-btn active" id="btn-seq-on" title="Sequencer On / Off">SEQ: ON</button>
+                <button class="seq-btn" id="btn-mod-mode" title="MOD OFF: Paint Steps (|, =, #) | MOD ON: Lock Dial Parameters">MOD</button>
+                <button class="seq-btn active" id="btn-hold-mode" title="HOLD: Latch States Across Empty Steps | REV: Release by SUS">HOLD</button>
+                <button class="seq-btn" id="btn-len" title="Click to Cycle 16/32/48/64 or Drag Vertically (1-64)">LEN: 16</button>
+                <button class="seq-btn" id="btn-view-page" title="Switch 16-Step Page Window">PG: 1/1</button>
+                <button class="seq-btn" id="btn-clr-lane" title="Clear Locks or Steps on Selected Lane">CLR</button>
+                <div style="display:flex; align-items:center; gap:5px; margin-left:4px; padding-left:8px; border-left:1px solid var(--border-inner);">
+                    <span class="knob-label" style="margin:0; color:var(--c-amber); font-size:8px;">PACE</span>
+                    <svg class="knob-svg" id="seq_pace" data-val="0.30" viewBox="0 0 44 44" style="width:24px; height:24px;">
+                        <circle class="knob-bg" cx="22" cy="22" r="16.5" style="stroke:var(--c-amber);"></circle>
+                        <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                        <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                    </svg>
+                    <span class="knob-label" style="margin:0 0 0 2px; color:var(--c-cyan); font-size:8px;">SUS</span>
+                    <svg class="knob-svg" id="seq_sus" data-val="0.55" viewBox="0 0 44 44" style="width:24px; height:24px;">
+                        <circle class="knob-bg" cx="22" cy="22" r="16.5" style="stroke:var(--c-cyan);"></circle>
+                        <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                        <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                    </svg>
+                    <span class="knob-label" style="margin:0 0 0 2px; color:var(--c-green); font-size:8px;">GROW</span>
+                    <svg class="knob-svg" id="seq_grow" data-val="0.0" viewBox="0 0 44 44" style="width:24px; height:24px;">
+                        <circle class="knob-bg" cx="22" cy="22" r="16.5" style="stroke:var(--c-green);"></circle>
+                        <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                        <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                    </svg>
+                    <span class="knob-label" style="margin:0 0 0 2px; color:var(--c-red-dim); font-size:8px;">DRAG</span>
+                    <svg class="knob-svg" id="seq_drag" data-val="0.0" viewBox="0 0 44 44" style="width:24px; height:24px;">
+                        <circle class="knob-bg" cx="22" cy="22" r="16.5" style="stroke:var(--c-red-dim);"></circle>
+                        <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                        <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        <div id="altar-matrix-wrap">
+            <div class="ascii-lanes" id="ascii-lanes"></div>
+            <div id="ascii-bed">
+                <div></div>
+                <pre class="mosaic-block" id="mb-0"></pre>
+                <pre class="mosaic-block" id="mb-1"></pre>
+                <pre class="mosaic-block" id="mb-2"></pre>
+                <pre class="mosaic-block" id="mb-3"></pre>
+                <pre class="mosaic-block" id="mb-4"></pre>
+                <pre class="mosaic-block" id="mb-5"></pre>
+                <pre class="mosaic-block" id="mb-6"></pre>
+                <pre class="mosaic-block" id="mb-7"></pre>
+                <div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+/* ===========================================================================
+   01. VIEWPORT SCALING
+   =========================================================================== */
+function fitToScreen() {
+    const chassis = document.getElementById('chassis');
+    chassis.style.transform = 'none';
+    const rect = chassis.getBoundingClientRect();
+    const padding = 24;
+    const scaleX = window.innerWidth / (rect.width + padding);
+    const scaleY = window.innerHeight / (rect.height + padding);
+    const scale = Math.min(1, scaleX, scaleY);
+    chassis.style.transform = `scale(${scale})`;
+}
+window.addEventListener('resize', fitToScreen);
+setTimeout(fitToScreen, 50);
+
+/* ===========================================================================
+   02. AUDIO WORKLET DSP PROCESSOR
+   =========================================================================== */
+const workletString = `
+class SafeDelay {
+    constructor(size) { this.size = size; this.buf = new Float32Array(size); this.writeIdx = 0; }
+    write(val) { if(isNaN(val)) val = 0; this.buf[this.writeIdx] = val; this.writeIdx = (this.writeIdx + 1) % this.size; }
+    read(sAgo) {
+        if(isNaN(sAgo)) sAgo = 0; sAgo = Math.max(0, Math.min(sAgo, this.size - 2));
+        let rPos = this.writeIdx - sAgo; while(rPos < 0) rPos += this.size;
+        let i1 = Math.floor(rPos); let i2 = (i1 + 1) % this.size; let frac = rPos - i1;
+        return this.buf[i1] + frac * (this.buf[i2] - this.buf[i1]);
+    }
+}
+class MnemoProcessor extends AudioWorkletProcessor {
+    constructor() {
+        super();
+        this.p = {
+            trace: 0, fault: 0, seep: 0, andamento: 0.5,
+            cadence: 0.5, index: 0, erosion: 0, silica: 0,
+            block: 0.8, tile: 0.5, fragment: 0.3, frit: 0,
+            undertow: 0, cantor: 0, lethe: 0, scatter: 0,
+            seq_pace: 0.30, seq_sus: 0.55, seq_grow: 0.0, seq_drag: 0.0
+        };
+
+        this.m_env = [0, 0, 0, 0];
+        this.m_target = [0, 0, 0, 0];
+        this.m_hold_samples = [0, 0, 0, 0];
+        this.m_latched = [false, false, false, false];
+        this.hold_mode = true;
+
+        this.cur_scan_offset = 0;
+        this.prev_scan_offset = 0;
+        this.slice_xfade = 1.0;
+
+        this.buf_rms = 0.0;
+
+        this.port.onmessage = e => {
+            if (e.data.type === 'morph_inject') {
+                const l = e.data.lane;
+                const level = e.data.level || 1;
+                const sus = Math.max(0.02, this.p.seq_sus || 0.55);
+                const pace = Math.max(0.01, this.p.seq_pace || 0.30);
+                const bpm = 3.0 + Math.pow(pace, 1.4) * 177.0;
+                const stepSamples = (60.0 / bpm / 4.0) * sampleRate;
+
+                const amp = level === 3 ? 1.0 : (level === 2 ? 0.72 : 0.45);
+                this.m_target[l] = amp;
+
+                if (this.hold_mode && level >= 2) {
+                    this.m_latched[l] = true;
+                    this.m_hold_samples[l] = 0;
+                } else {
+                    this.m_latched[l] = false;
+                    const mult = 0.25 + Math.pow(sus, 1.5) * 3.75;
+                    this.m_hold_samples[l] = Math.floor(stepSamples * mult);
+                }
+
+                if (l === 0) {
+                    const sliceSteps = [0.0, 0.25, 0.5, 0.75, 0.125, 0.375, 0.625, 0.875];
+                    const nextShift = sliceSteps[e.data.stepIdx % sliceSteps.length] * (0.35 + level * 0.22);
+                    const nextOffset = this.wrap(this.p.index + nextShift, 0, 1) * this.len;
+                    if (Math.abs(nextOffset - this.cur_scan_offset) > 32) {
+                        this.prev_scan_offset = this.cur_scan_offset;
+                        this.cur_scan_offset = nextOffset;
+                        this.slice_xfade = 0.0;
+                    }
+                }
+            } else if (e.data.type === 'morph_release') {
+                const l = e.data.lane;
+                this.m_latched[l] = false;
+            } else if (e.data.type === 'set_hold_mode') {
+                this.hold_mode = !!e.data.value;
+                if (!this.hold_mode) {
+                    this.m_latched = [false, false, false, false];
+                }
+            } else if (e.data.type === 'seq_clear_env') {
+                this.m_target = [0, 0, 0, 0];
+                this.m_hold_samples = [0, 0, 0, 0];
+                this.m_latched = [false, false, false, false];
+                this.prev_scan_offset = this.cur_scan_offset;
+                this.cur_scan_offset = this.p.index * this.len;
+                this.slice_xfade = 0.0;
+            } else if (e.data.id && this.p[e.data.id] !== undefined) {
+                if (e.data.id === 'index') {
+                    this.prev_scan_offset = this.cur_scan_offset;
+                    this.cur_scan_offset = e.data.value * this.len;
+                    this.slice_xfade = 0.0;
+                }
+                this.p[e.data.id] = e.data.value;
+            }
+        };
+
+        this.len = 96000;
+        this.stratum = new Float32Array(this.len);
+        this.rec_pos = 0;
+        this.bbd = new SafeDelay(96000);
+        this.bbd_hist = 0;
+        this.bbd_hp_hist = 0;
+
+        this.sm = { cadence:0.5, andamento:0.5, ero:0, sil:0, seep:0, block:0.8, tile:0.5, frag:0.3, frit:0, under:0, cantor:0, lethe:0, scatter:0 };
+        this.p1=0; this.p2=0; this.p3=0; this.p4=0; this.p_under=0; this.p_spin=0; this.cantor_ph_c=0; this.cantor_ph_s=0; this.eidolon_ph=0;
+        this.prev_p1=0; this.prev_p2=0; this.prev_p3=0; this.prev_p4=0; this.prev_p137=0; this.prev_sr=0;
+
+        this.fault_state = 0; this.g1=1; this.g2=1; this.g3=1; this.g4=1;
+        this.dust_octave = 0; this.spin_scatter = 0; this.spin_gate = 0; this.euclid_acc = 0;
+        this.glitch_L=0; this.glitch_R=0;
+        this.TWOPI = Math.PI * 2;
+
+        this.seq_ph = 0;
+        this.prev_seq_ph = 0;
+        this.fc = 0;
+    }
+    slide(t, c, u, d) { if(isNaN(c)) c=0; let diff=t-c; return c+(diff>0?diff/Math.max(1,u):diff/Math.max(1,d)); }
+    noise() { return Math.random()*2-1; }
+    wrap(v, min, max) { let r=max-min; if(r===0) return min; let res=(v-min)%r; if(res<0) res+=r; return res+min; }
+
+    process(ins, outs) {
+        const input = ins[0][0]; const outL = outs[0][0]; const outR = outs[0][1];
+        if (!outL || !outR) return true;
+        const sr = sampleRate;
+
+        let drag = Math.max(0, Math.min(1, this.p.seq_drag));
+        let morph_slew = 720 + Math.pow(drag, 2.0) * (sr * 3.5);
+        let panel_slew = drag < 0.02 ? 96 : (480 + Math.pow(drag, 1.8) * (sr * 1.5));
+
+        let pace = Math.max(0, Math.min(1, this.p.seq_pace));
+        let bpm = pace > 0.01 ? (3.0 + Math.pow(pace, 1.4) * 177.0) : 0.0;
+        let step_hz = (bpm / 60.0) * 4.0;
+
+        let sus_dial = Math.max(0.01, Math.min(1, this.p.seq_sus));
+        let env_release = (sr * 0.12) + Math.pow(sus_dial, 2.2) * (sr * 8.0);
+        let xfade_inc = 1.0 / (sr * 0.015);
+
+        for (let i = 0; i < outL.length; i++) {
+            if (step_hz > 0) {
+                this.seq_ph = this.wrap(this.seq_ph + (step_hz / sr), 0.0, 1.0);
+                if (this.seq_ph < this.prev_seq_ph) {
+                    this.port.postMessage({ type: 'seq_tick' });
+                }
+                this.prev_seq_ph = this.seq_ph;
+            }
+
+            if (this.slice_xfade < 1.0) {
+                this.slice_xfade = Math.min(1.0, this.slice_xfade + xfade_inc);
+            }
+
+            for (let m = 0; m < 4; m++) {
+                if (this.m_latched[m]) {
+                    this.m_env[m] = this.slide(this.m_target[m], this.m_env[m], morph_slew, morph_slew);
+                } else if (this.m_hold_samples[m] > 0) {
+                    this.m_hold_samples[m]--;
+                    this.m_env[m] = this.slide(this.m_target[m], this.m_env[m], morph_slew, env_release);
+                } else {
+                    this.m_env[m] = this.slide(0.0, this.m_env[m], morph_slew, env_release);
+                }
+            }
+
+            let in1 = input ? input[i] : 0;
+
+            let rms_boost = Math.min(0.45, this.buf_rms * 2.2);
+            let mStrata  = this.m_env[0];
+            let mErosion = Math.min(1.0, this.m_env[1] * (0.75 + rms_boost));
+            let mSilica  = Math.min(1.0, this.m_env[2] * (0.75 + rms_boost));
+            let mLethe   = Math.min(1.0, this.m_env[3] * (0.80 + rms_boost));
+
+            let eff_ero     = Math.max(0, Math.min(1, this.p.erosion + mErosion * 0.48));
+            let eff_seep    = Math.max(0, Math.min(1, this.p.seep + mErosion * 0.32));
+            let eff_sil     = Math.max(0, Math.min(1, this.p.silica + mSilica * 0.22));
+            let eff_frit    = Math.max(0, Math.min(1, this.p.frit + mSilica * 0.35));
+            let eff_under   = Math.max(0, Math.min(1, this.p.undertow + mLethe * 0.42));
+            let eff_lethe   = Math.max(0, Math.min(1, this.p.lethe + mLethe * 0.42));
+            let eff_cantor  = Math.max(0, Math.min(1, this.p.cantor + mLethe * 0.12));
+
+            this.sm.cadence = this.slide(this.p.cadence, this.sm.cadence, 48, 48);
+            this.sm.andamento = this.slide(this.p.andamento, this.sm.andamento, 48, 48);
+
+            let sl = panel_slew;
+            this.sm.ero = this.slide(eff_ero, this.sm.ero, sl, sl);
+            this.sm.sil = this.slide(eff_sil, this.sm.sil, sl, sl);
+            this.sm.seep = this.slide(eff_seep, this.sm.seep, sl, sl);
+            this.sm.block = this.slide(this.p.block, this.sm.block, sl, sl);
+            this.sm.tile = this.slide(this.p.tile, this.sm.tile, sl, sl);
+            this.sm.frag = this.slide(this.p.fragment, this.sm.frag, sl, sl);
+            this.sm.frit = this.slide(eff_frit, this.sm.frit, sl, sl);
+            this.sm.under = this.slide(eff_under, this.sm.under, sl, sl);
+            this.sm.cantor = this.slide(eff_cantor, this.sm.cantor, sl, sl);
+            this.sm.lethe = this.slide(eff_lethe, this.sm.lethe, sl, sl);
+            this.sm.scatter = this.slide(this.p.scatter, this.sm.scatter, sl, sl);
+
+            let cadence_mult = Math.pow(2, (this.sm.cadence * 2) - 1);
+            let tape_speed_samples = 48000 * cadence_mult;
+
+            if (this.p.trace === 0) {
+                this.stratum[Math.floor(this.rec_pos)] = in1;
+                this.rec_pos = (this.rec_pos + 1) % this.len;
+            }
+
+            let eff_fault = Math.min(1, this.p.fault + mErosion * 0.30);
+            this.fault_state = eff_fault > 0.66 ? 2 : (eff_fault > 0.33 ? 1 : 0);
+
+            let time_sec = currentTime + (i/sr);
+            let drift1 = Math.sin(time_sec * 0.07 * this.TWOPI) * (this.sm.seep * 0.04);
+            let drift2 = Math.sin(time_sec * 0.11 * this.TWOPI) * (this.sm.seep * 0.04);
+            let drift3 = Math.sin(time_sec * 0.13 * this.TWOPI) * (this.sm.seep * 0.04);
+            let drift4 = Math.sin(time_sec * 0.19 * this.TWOPI) * (this.sm.seep * 0.04);
+
+            let m1 = 1 + drift1;
+            let m2 = (this.fault_state == 1 ? 2.013 : 2) + drift2;
+            let m3 = (this.fault_state == 1 ? 3.987 : 4) + drift3;
+            let m4 = (this.fault_state == 1 ? 8.041 : 8) + drift4;
+
+            let andamento_mult = Math.max(Math.pow(this.sm.andamento, 3) * 3.0, 0.001);
+            let base_freq = 2.0 * andamento_mult;
+
+            let f1 = Math.max(base_freq * m1, 0.001); let f2 = Math.max(base_freq * m2, 0.001);
+            let f3 = Math.max(base_freq * m3, 0.001); let f4 = Math.max(base_freq * m4, 0.001);
+
+            this.p1 = this.wrap(this.p1 + f1/sr, 0, 1); let dp1 = this.p1 - this.prev_p1; this.prev_p1 = this.p1;
+            this.p2 = this.wrap(this.p2 + f2/sr, 0, 1); let dp2 = this.p2 - this.prev_p2; this.prev_p2 = this.p2;
+            this.p3 = this.wrap(this.p3 + f3/sr, 0, 1); let dp3 = this.p3 - this.prev_p3; this.prev_p3 = this.p3;
+            this.p4 = this.wrap(this.p4 + f4/sr, 0, 1); let dp4 = this.p4 - this.prev_p4; this.prev_p4 = this.p4;
+
+            if (this.fault_state == 2) {
+                if(dp1 < -0.5) this.g1 = this.noise() > -0.2 ? 1 : 0;
+                if(dp2 < -0.5) this.g2 = this.noise() > 0.2 ? 1 : 0;
+                if(dp3 < -0.5) this.g3 = this.noise() > 0.5 ? 1 : 0;
+                if(dp4 < -0.5) this.g4 = this.noise() > 0.7 ? 1 : 0;
+            } else { this.g1=1; this.g2=1; this.g3=1; this.g4=1; }
+
+            let win1 = (this.p1 < 0.5 ? 1 : 0) * (1 - this.sm.ero) + Math.sin(this.p1 * Math.PI) * this.sm.ero * this.g1;
+            let win2 = (this.p2 < 0.5 ? 1 : 0) * (1 - this.sm.ero) + Math.sin(this.p2 * Math.PI) * this.sm.ero * this.g2;
+            let win3 = (this.p3 < 0.5 ? 1 : 0) * (1 - this.sm.ero) + Math.sin(this.p3 * Math.PI) * this.sm.ero * this.g3;
+            let win4 = (this.p4 < 0.5 ? 1 : 0) * (1 - this.sm.ero) + Math.sin(this.p4 * Math.PI) * this.sm.ero * this.g4;
+
+            let ws1 = Math.max(1, Math.min(this.len, tape_speed_samples / f1));
+            let ws2 = Math.max(1, Math.min(this.len, tape_speed_samples / f2));
+            let ws3 = Math.max(1, Math.min(this.len, tape_speed_samples / f3));
+            let ws4 = Math.max(1, Math.min(this.len, tape_speed_samples / f4));
+
+            let chunk = this.len / 4;
+            let xf = this.slice_xfade;
+            let inv_xf = 1.0 - xf;
+
+            let s1_cur = this.stratum[Math.floor(((this.p1 * ws1) + this.cur_scan_offset) % this.len)];
+            let s2_cur = this.stratum[Math.floor(((this.p2 * ws2) + chunk + this.cur_scan_offset) % this.len)];
+            let s3_cur = this.stratum[Math.floor(((this.p3 * ws3) + (chunk * 2) + this.cur_scan_offset) % this.len)];
+            let s4_cur = this.stratum[Math.floor(((this.p4 * ws4) + (chunk * 3) + this.cur_scan_offset) % this.len)];
+
+            if (xf < 0.999) {
+                let s1_prv = this.stratum[Math.floor(((this.p1 * ws1) + this.prev_scan_offset) % this.len)];
+                let s2_prv = this.stratum[Math.floor(((this.p2 * ws2) + chunk + this.prev_scan_offset) % this.len)];
+                let s3_prv = this.stratum[Math.floor(((this.p3 * ws3) + (chunk * 2) + this.prev_scan_offset) % this.len)];
+                let s4_prv = this.stratum[Math.floor(((this.p4 * ws4) + (chunk * 3) + this.prev_scan_offset) % this.len)];
+                s1_cur = s1_prv * inv_xf + s1_cur * xf;
+                s2_cur = s2_prv * inv_xf + s2_cur * xf;
+                s3_cur = s3_prv * inv_xf + s3_cur * xf;
+                s4_cur = s4_prv * inv_xf + s4_cur * xf;
+            }
+
+            let v1 = s1_cur * win1 * Math.min(1.15, this.sm.block + mStrata * 0.15);
+            let v2 = s2_cur * win2 * Math.min(1.15, this.sm.tile  + mErosion * 0.20);
+
+            let seep_choke = Math.max(0, Math.min(1, (this.sm.seep - 0.5) * 2.0));
+            let choke_win3 = 1.0 * (1 - seep_choke) + (1.0 - win1) * seep_choke;
+            let choke_win4 = 1.0 * (1 - seep_choke) + (1.0 - win2) * seep_choke;
+
+            let v3 = s3_cur * win3 * Math.min(1.15, this.sm.frag + mSilica * 0.22) * choke_win3;
+            let v4 = s4_cur * win4 * Math.min(1.15, this.sm.frit + mLethe * 0.20) * choke_win4;
+
+            let mosaic_core = v1 + v2 + v3 + v4;
+            this.buf_rms = this.slide(Math.abs(mosaic_core), this.buf_rms, 480, 4800);
+
+            let seep_stutter = Math.max(0, Math.min(1, (this.sm.seep - 0.75) * 4.0));
+            if(dp2 < -0.5) this.stutter_gate = this.noise() > 0.1 ? 1 : 0;
+            let dry_mosaic = mosaic_core * (1.0 * (1 - seep_stutter) + (this.stutter_gate||0) * seep_stutter);
+
+            let scan_offset = this.cur_scan_offset;
+            this.p_under = this.wrap(this.p_under + (cadence_mult * 1.0)/sr, 0, 1);
+            let idx_under = (this.len - (this.p_under * this.len) + scan_offset) % this.len;
+            let v_under = this.stratum[Math.floor(idx_under)] * Math.sin(this.p_under * Math.PI) * this.sm.under;
+
+            let p137 = this.wrap(time_sec * cadence_mult * 13.7, 0, 1);
+            let dp137 = p137 - this.prev_p137; this.prev_p137 = p137;
+            if(dp137 < -0.5) {
+                this.dust_octave = Math.floor(Math.abs(this.noise()) * 3);
+                this.spin_scatter = Math.abs(this.noise()) * this.len;
+                this.spin_gate = this.noise() > 0.3 ? 1 : 0;
+            }
+            let dust_mult = Math.pow(2, this.dust_octave);
+            let dust_speed = (cadence_mult * 13.7) * dust_mult;
+
+            this.p_spin = this.wrap(this.p_spin + dust_speed/sr, 0, 1);
+            let ws_spin = Math.max(1, Math.min(this.len, tape_speed_samples / dust_speed));
+            let idx_spin = ((this.p_spin * ws_spin) + this.spin_scatter + scan_offset) % this.len;
+
+            if(dp3 < -0.5) this.euclid_acc++;
+            let is_euclid = ((this.euclid_acc % 16) * 5) % 16 < 5 ? 1 : 0;
+            let idx_euclid = ((this.p3 * ws3) + scan_offset) % this.len;
+
+            let lock_act = this.sm.scatter > 0.95 ? 1 : 0;
+            let final_sc_gate = this.spin_gate * (1-lock_act) + is_euclid * lock_act;
+            let final_sc_idx = idx_spin * (1-lock_act) + idx_euclid * lock_act;
+            let final_sc_win = (Math.sin(this.p_spin*Math.PI)*(1-lock_act) + Math.sin(this.p3*Math.PI)*lock_act) * final_sc_gate;
+
+            let v_scatter = this.stratum[Math.floor(final_sc_idx)] * final_sc_win * this.sm.scatter;
+
+            let raw_L = dry_mosaic + v_under;
+            let raw_R = dry_mosaic + v_scatter;
+
+            let sr_rate = Math.max(100, 48000 - (this.sm.sil * 47500));
+            let p_sr = this.wrap(time_sec * sr_rate, 0, 1);
+            if (p_sr < this.prev_sr) { this.glitch_L = raw_L; this.glitch_R = raw_R; }
+            this.prev_sr = p_sr;
+
+            let foldL = raw_L; let foldR = raw_R;
+            if(this.sm.sil > 0.01) {
+                let fvL = this.glitch_L * (1 + this.sm.sil * 4);
+                foldL = Math.abs((fvL + 1) % 4 - 2) - 1;
+                let fvR = this.glitch_R * (1 + this.sm.sil * 4);
+                foldR = Math.abs((fvR + 1) % 4 - 2) - 1;
+            }
+
+            let cantor_act = this.sm.cantor > 0.01 ? 1 : 0;
+            let base_cantor_freq = 40 + Math.pow(this.sm.cantor, 1.5) * 280;
+
+            let seep_bend = Math.max(0, Math.min(1, (this.sm.seep - 0.75) * 4.0));
+            let mica_c = Math.sin(time_sec * 0.040 * this.TWOPI);
+            let mica_s = Math.sin(time_sec * 0.047 * this.TWOPI);
+
+            let pm_c = 1.0 + (mica_c * 0.03 * seep_bend);
+            let pm_s = 1.0 + (mica_s * 0.03 * seep_bend);
+            let c_drift = Math.sin(time_sec * 0.15 * this.TWOPI) * 0.005;
+            let c_melt = (foldL + foldR) * 0.1;
+
+            this.cantor_ph_c = this.wrap(this.cantor_ph_c + (base_cantor_freq * pm_c * (1+c_drift))/sr, 0, 1);
+            this.cantor_ph_s = this.wrap(this.cantor_ph_s + ((base_cantor_freq*0.5) * pm_s * (1+c_drift))/sr, 0, 1);
+
+            let c_core = Math.sin((this.cantor_ph_c + c_melt) * this.TWOPI);
+            let c_sub = Math.sin((this.cantor_ph_s + c_melt) * this.TWOPI) * this.sm.seep;
+
+            let c_pre = (c_core + c_sub) * 1.5;
+            let c_fold = Math.abs((c_pre + 1) % 4 - 2) - 1;
+            let cantor_sig = c_fold * this.sm.cantor * cantor_act * 0.25;
+
+            let e_gate = Math.max(0, Math.min(1, (this.sm.seep - 0.7) * 3.3));
+            this.eidolon_ph = this.wrap(this.eidolon_ph + ((base_cantor_freq * 4.0) * (1.0 + mica_c*0.05))/sr, 0, 1);
+            let e_core = Math.sin((this.eidolon_ph + c_melt) * this.TWOPI);
+            let eidolon_sig = e_core * Math.abs(mosaic_core) * e_gate * this.sm.cantor * 0.3;
+
+            let tank1 = 11300 + (Math.sin(time_sec * 0.11 * this.TWOPI) * 50);
+            let tank2 = 17900 + (Math.cos(time_sec * 0.17 * this.TWOPI) * 70);
+
+            let tap1 = this.bbd.read(tank1); let tap2 = this.bbd.read(tank2);
+            let bbd_lp = ((tap1 + tap2) * 0.5) * 0.35 + this.bbd_hist * 0.65;
+            this.bbd_hist = bbd_lp;
+
+            this.bbd_hp_hist = this.bbd_hp_hist * 0.985 + bbd_lp * 0.015;
+            let bbd_clean = bbd_lp - this.bbd_hp_hist;
+            let bbd_fb = Math.tanh(bbd_clean * (this.sm.lethe * 0.94));
+
+            let seep_flood = Math.max(0, Math.min(1, (this.sm.seep - 0.9) * 10.0)) * 0.3;
+            let seep_bl_pre = mosaic_core * 2.0;
+            let seep_bl = (Math.abs((seep_bl_pre + 1) % 4 - 2) - 1) * ((this.sm.seep * 0.4) + seep_flood);
+
+            let bbd_in = ((foldL + foldR) * 0.5) + cantor_sig + eidolon_sig + (v_under * 0.08) + seep_bl + bbd_fb;
+            this.bbd.write(bbd_in);
+
+            let wet_L = foldL + cantor_sig + eidolon_sig + (bbd_clean * this.sm.lethe);
+            let wet_R = foldR + cantor_sig + eidolon_sig + (bbd_clean * this.sm.lethe);
+
+            outL[i] = in1 * (1 - this.p.trace) + wet_L * this.p.trace;
+            outR[i] = in1 * (1 - this.p.trace) + wet_R * this.p.trace;
+        }
+
+        this.fc += outL.length;
+        if (this.fc >= 1024) {
+            let maxEnv = Math.max(this.m_env[0], this.m_env[1], this.m_env[2], this.m_env[3]);
+            this.port.postMessage({
+                type: 'telemetry',
+                shatter_act: maxEnv,
+                heads: [this.m_env[0], this.m_env[1], this.m_env[2], this.m_env[3]]
+            });
+            this.fc = 0;
+        }
+        return true;
+    }
+}
+registerProcessor('mnemo-node', MnemoProcessor);
+`;
+
+/* ===========================================================================
+   03. STATE & SEQUENCER DATA STRUCTURES
+   =========================================================================== */
+let audioCtx, mnemoNode, analyzer, scopeData, recNode; let isPlaying = false;
+let presets = JSON.parse(localStorage.getItem('mnemosyne_presets_v1')) || {};
+let presetKeys = ['init', ...Object.keys(presets)];
+let currentPresetIdx = 0;
+
+const canvas = document.getElementById('scope'); const ctx = canvas.getContext('2d'); canvas.width = 140; canvas.height = 40;
+
+let scopeMode = 0;
+let seismoHistory = new Array(canvas.width).fill(0);
+let liveHeads = [0, 0, 0, 0];
+let liveShatterAct = 0;
+canvas.addEventListener('click', () => { scopeMode = 1 - scopeMode; });
+
+const allSynthParams = [
+    'fault', 'seep', 'andamento', 'cadence', 'index', 'erosion', 'silica',
+    'block', 'tile', 'fragment', 'frit', 'undertow', 'cantor', 'lethe', 'scatter'
+];
+const laneParamPools = [
+    ['index', 'block', 'tile', 'fragment'],
+    ['erosion', 'seep', 'fault', 'tile'],
+    ['fragment', 'frit', 'silica', 'scatter'],
+    ['undertow', 'lethe', 'scatter', 'cantor']
+];
+const laneLabels = ['I.', 'II.', 'III.', 'IV.'];
+const laneColors = ['var(--c-green)', 'var(--c-amber)', 'var(--c-cyan)', 'var(--c-red-dim)'];
+
+let laneLengths = [16, 16, 16, 16];
+let playSteps = [-1, -1, -1, -1];
+let viewPage = 0;
+let activeTrack = 0;
+let seqOn = true;
+let modMode = false;
+let holdMode = true;
+let editingStep = null;
+
+let isSeqDragging = false;
+let dragStartStep = null;
+let dragLane = null;
+let dragMoved = false;
+
+const baseParams = {};
+const liveParams = {};
+document.querySelectorAll('.knob-svg').forEach(k => {
+    baseParams[k.id] = parseFloat(k.dataset.val);
+    liveParams[k.id] = parseFloat(k.dataset.val);
+});
+
+const seqTracks = Array.from({ length: 4 }, () =>
+    Array.from({ length: 64 }, () => ({
+        trig: false,
+        level: 0,
+        locks: {}
+    }))
+);
+
+/* ===========================================================================
+   04. OLED SCOPE & PARAMETER TELEMETRY
+   =========================================================================== */
+function drawScope() {
+    requestAnimationFrame(drawScope); ctx.fillStyle = '#030403'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#18221d';
+    for (let x = 2; x < canvas.width - 2; x += 4) ctx.fillRect(x, Math.floor(canvas.height * 0.5), 1, 1);
+
+    if (!analyzer || !isPlaying) return;
+    analyzer.getByteTimeDomainData(scopeData);
+    if (scopeMode === 0) {
+        ctx.lineWidth = 1.5; ctx.strokeStyle = '#4e8f60'; ctx.beginPath();
+        let sliceWidth = canvas.width * 1.0 / scopeData.length; let x = 0;
+        for(let i = 0; i < scopeData.length; i++) { let v = scopeData[i] / 128.0; let y = v * canvas.height / 2; if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); x += sliceWidth; }
+        ctx.lineTo(canvas.width, canvas.height/2); ctx.stroke();
+    } else {
+        let peak = 0; for(let i=0; i<scopeData.length; i++) { let v = Math.abs(scopeData[i] - 128) / 128.0; if(v > peak) peak = v; }
+        seismoHistory.shift(); seismoHistory.push(peak); ctx.fillStyle = '#c45858';
+        for(let x=0; x<canvas.width; x++) { let h = seismoHistory[x] * canvas.height; ctx.fillRect(x, canvas.height - h, 1, h); }
+    }
+}
+drawScope();
+
+function setKnobVisual(knob, val) {
+    val = Math.max(0, Math.min(1, val));
+    knob.dataset.val = val;
+    let angle = -135 + (val * 270);
+    knob.querySelector('.knob-indicator').setAttribute('transform', `rotate(${angle}, 22, 22)`);
+    updateColumnGlow(knob);
+}
+
+const seqUtilKnobs = ['seq_pace', 'seq_sus', 'seq_grow', 'seq_drag'];
+
+function setKnobValue(knob, val, mode = 'user') {
+    val = Math.max(0, Math.min(1, val));
+    setKnobVisual(knob, val);
+
+    if (seqUtilKnobs.includes(knob.id)) {
+        baseParams[knob.id] = val;
+        liveParams[knob.id] = val;
+        sendParam(knob.id, val);
+        return;
+    }
+
+    if (mode === 'user') {
+        if (modMode && editingStep !== null) {
+            const st = seqTracks[activeTrack][editingStep];
+            st.locks[knob.id] = val;
+            if (!st.trig) { st.trig = true; st.level = 1; }
+            knob.classList.add('plocked');
+            liveParams[knob.id] = val;
+            sendParam(knob.id, val);
+            renderAsciiLanes();
+        } else {
+            baseParams[knob.id] = val;
+            liveParams[knob.id] = val;
+            knob.classList.remove('mod-active');
+            sendParam(knob.id, val);
+        }
+    } else if (mode === 'preset' || mode === 'seq') {
+        baseParams[knob.id] = val;
+        liveParams[knob.id] = val;
+        sendParam(knob.id, val);
+    }
+}
+
+function sendParam(id, val) { if (mnemoNode) mnemoNode.port.postMessage({ id: id, value: val }); }
+function syncAllParams() {
+    document.querySelectorAll('.knob-svg').forEach(knob => { sendParam(knob.id, baseParams[knob.id]); updateColumnGlow(knob); });
+    if (mnemoNode) mnemoNode.port.postMessage({ type: 'set_hold_mode', value: holdMode });
+}
+
+function updateColumnGlow(knob) {
+    const col = knob.closest('.column');
+    if (!col) return;
+    const colId = col.dataset.col;
+    const header = col.querySelector('.col-header');
+    if (!header) return;
+
+    const knobsInCol = col.querySelectorAll('.knob-svg');
+    let sum = 0;
+    knobsInCol.forEach(k => sum += parseFloat(k.dataset.val));
+    let avg = sum / knobsInCol.length;
+
+    let rgb = '110, 130, 119';
+    if (colId === 'sys') { rgb = '78, 143, 96'; }
+    else if (colId === 'pat') { rgb = '166, 122, 60'; }
+    else if (colId === 'tes') { rgb = '72, 126, 158'; }
+    else if (colId === 'des') { rgb = '158, 75, 75'; }
+
+    header.style.textShadow = 'none';
+    if (avg < 0.05) {
+        header.style.color = 'var(--text-dim)';
+    } else {
+        header.style.color = `rgba(${rgb}, ${0.65 + avg * 0.35})`;
+    }
+}
+
+/* ===========================================================================
+   05. AUDIO ENGINE INITIALIZATION & INPUT/EXPORT HANDLERS
+   =========================================================================== */
+let isRecording = false; let recBuffersL = []; let recBuffersR = []; let recLength = 0;
+let micStream = null, fileSource = null; let extGain = null;
+
+async function initAudio() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+    const blob = new Blob([workletString], { type: 'application/javascript' });
+    await audioCtx.audioWorklet.addModule(URL.createObjectURL(blob));
+    mnemoNode = new AudioWorkletNode(audioCtx, 'mnemo-node', { outputChannelCount: [2] });
+    mnemoNode.port.onmessage = e => {
+        if (e.data.type === 'seq_tick' && seqOn) {
+            advanceSequencer();
+        } else if (e.data.type === 'telemetry') {
+            liveHeads = e.data.heads;
+            liveShatterAct = e.data.shatter_act;
+        }
+    };
+
+    extGain = audioCtx.createGain(); extGain.connect(mnemoNode);
+    analyzer = audioCtx.createAnalyser(); analyzer.fftSize = 512; scopeData = new Uint8Array(analyzer.frequencyBinCount);
+
+    recNode = audioCtx.createScriptProcessor(4096, 2, 2);
+    recNode.onaudioprocess = function(e) {
+        if (!isRecording) return;
+        recBuffersL.push(new Float32Array(e.inputBuffer.getChannelData(0))); recBuffersR.push(new Float32Array(e.inputBuffer.getChannelData(1))); recLength += e.inputBuffer.getChannelData(0).length;
+    };
+
+    mnemoNode.connect(analyzer); analyzer.connect(audioCtx.destination);
+    mnemoNode.connect(recNode); recNode.connect(audioCtx.destination);
+
+    isPlaying = true; document.getElementById('btn-activate').classList.add('active'); syncAllParams();
+}
+
+document.querySelectorAll('.knob-svg').forEach(knob => {
+    let isDragging = false, startY, startVal;
+    setKnobVisual(knob, baseParams[knob.id]);
+    knob.addEventListener('pointerdown', e => {
+        isDragging = true; startY = e.clientY; startVal = parseFloat(knob.dataset.val);
+        knob.setPointerCapture(e.pointerId); e.preventDefault();
+    });
+    window.addEventListener('pointermove', e => {
+        if(!isDragging) return;
+        let delta = (startY - e.clientY) * 0.005;
+        setKnobValue(knob, startVal + delta, 'user');
+    });
+    window.addEventListener('pointerup', e => {
+        if(isDragging) { isDragging = false; try { knob.releasePointerCapture(e.pointerId); } catch(err){} }
+    });
+});
+
+document.getElementById('btn-activate').addEventListener('click', (e) => {
+    if (!audioCtx) { initAudio(); } else if (audioCtx.state === 'running') { audioCtx.suspend(); isPlaying = false; e.target.classList.remove('active'); } else { audioCtx.resume(); isPlaying = true; e.target.classList.add('active'); }
+});
+document.getElementById('btn-scatter').addEventListener('click', () => {
+    document.querySelectorAll('.knob-svg').forEach(knob => {
+        if (!seqUtilKnobs.includes(knob.id)) setKnobValue(knob, Math.random(), 'user');
+    });
+});
+
+let isDrifting = false;
+document.getElementById('btn-drift').addEventListener('click', (e) => { isDrifting = !isDrifting; e.target.classList.toggle('active', isDrifting); });
+setInterval(() => {
+    if(!isDrifting || !isPlaying || editingStep !== null) return;
+    document.querySelectorAll('.knob-svg').forEach(knob => {
+        if (!seqUtilKnobs.includes(knob.id)) {
+            let v = baseParams[knob.id] + (Math.random() - 0.5) * 0.002;
+            setKnobValue(knob, v, 'preset');
+        }
+    });
+}, 50);
+
+/* Custom ASCII A/B Crossfader */
+let stateA = null, stateB = null;
+const abScrubEl = document.getElementById('ab-scrub');
+function renderAbBar(mix) {
+    const cells = 8;
+    const pos = Math.max(0, Math.min(cells - 1, Math.round(mix * (cells - 1))));
+    let bar = '';
+    for (let i = 0; i < cells; i++) bar += (i === pos) ? '■' : '░';
+    abScrubEl.textContent = `[${bar}]`;
+}
+document.getElementById('btn-a').addEventListener('click', (e) => {
+    stateA = { ...baseParams };
+    e.target.classList.add('active');
+    document.getElementById('btn-b').classList.remove('active');
+    renderAbBar(0);
+});
+document.getElementById('btn-b').addEventListener('click', (e) => {
+    stateB = { ...baseParams };
+    e.target.classList.add('active');
+    document.getElementById('btn-a').classList.remove('active');
+    renderAbBar(1);
+});
+
+let isAbDragging = false;
+function scrubAb(clientX) {
+    if (!stateA || !stateB) return;
+    const rect = abScrubEl.getBoundingClientRect();
+    const mix = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
+    renderAbBar(mix);
+    document.querySelectorAll('.knob-svg').forEach(k => {
+        if (!seqUtilKnobs.includes(k.id)) setKnobValue(k, stateA[k.id] * (1 - mix) + stateB[k.id] * mix, 'preset');
+    });
+}
+abScrubEl.addEventListener('pointerdown', (e) => { e.preventDefault(); isAbDragging = true; scrubAb(e.clientX); try { abScrubEl.setPointerCapture(e.pointerId); } catch (_) {} });
+abScrubEl.addEventListener('pointermove', (e) => { if (isAbDragging) scrubAb(e.clientX); });
+abScrubEl.addEventListener('pointerup', (e) => { isAbDragging = false; try { abScrubEl.releasePointerCapture(e.pointerId); } catch (_) {} });
+
+let isFrozen = false;
+document.getElementById('btn-freeze').addEventListener('click', (e) => {
+    isFrozen = !isFrozen;
+    e.target.classList.toggle('active', isFrozen);
+    sendParam('trace', isFrozen ? 1 : 0);
+});
+
+document.getElementById('btn-mic').addEventListener('click', async (e) => {
+    if(!audioCtx) await initAudio();
+    if(micStream) return;
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        micStream = audioCtx.createMediaStreamSource(stream);
+        if(fileSource) { fileSource.disconnect(); fileSource = null; document.getElementById('btn-file').classList.remove('active'); }
+        micStream.connect(extGain);
+        e.target.classList.add('active');
+    } catch(err) { alert('Microphone access denied or unavailable.'); }
+});
+
+document.getElementById('btn-file').addEventListener('click', () => { document.getElementById('file-upload').click(); });
+document.getElementById('file-upload').addEventListener('change', async (e) => {
+    if(!audioCtx) await initAudio();
+    let file = e.target.files[0]; if(!file) return;
+    let reader = new FileReader();
+    reader.onload = async function(ev) {
+        let audioData = await audioCtx.decodeAudioData(ev.target.result);
+        if(micStream) { micStream.disconnect(); micStream = null; document.getElementById('btn-mic').classList.remove('active'); }
+        if(fileSource) { fileSource.disconnect(); }
+        fileSource = audioCtx.createBufferSource();
+        fileSource.buffer = audioData; fileSource.loop = true;
+        fileSource.connect(extGain); fileSource.start(0);
+        document.getElementById('btn-file').classList.add('active');
+    };
+    reader.readAsArrayBuffer(file);
+});
+
+document.getElementById('btn-rec').addEventListener('click', (e) => {
+    if(!audioCtx) return;
+    if (!isRecording) { isRecording = true; recBuffersL = []; recBuffersR = []; recLength = 0; e.target.classList.add('active-red'); }
+    else { isRecording = false; e.target.classList.remove('active-red'); exportWAV(); }
+});
+function exportWAV() {
+    let interleaved = new Float32Array(recLength * 2); let offset = 0;
+    for (let i = 0; i < recBuffersL.length; i++) { let bufL = recBuffersL[i]; let bufR = recBuffersR[i]; for (let j = 0; j < bufL.length; j++) { interleaved[offset++] = bufL[j]; interleaved[offset++] = bufR[j]; } }
+    let buffer = new ArrayBuffer(44 + interleaved.length * 2); let view = new DataView(buffer);
+    let writeString = function(view, offset, string) { for (let i=0; i<string.length; i++) view.setUint8(offset + i, string.charCodeAt(i)); };
+    writeString(view, 0, 'RIFF'); view.setUint32(4, 36 + interleaved.length * 2, true); writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 2, true);
+    view.setUint32(24, audioCtx.sampleRate, true); view.setUint32(28, audioCtx.sampleRate * 4, true); view.setUint16(32, 4, true); view.setUint16(34, 16, true);
+    writeString(view, 36, 'data'); view.setUint32(40, interleaved.length * 2, true);
+    let o = 44; for (let i = 0; i < interleaved.length; i++, o += 2) { let s = Math.max(-1, Math.min(1, interleaved[i])); view.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true); }
+    let blob = new Blob([view], { type: 'audio/wav' }); let url = URL.createObjectURL(blob); let a = document.createElement('a'); a.style.display = 'none'; a.href = url;
+    let pName = presetKeys[currentPresetIdx] || 'init'; a.download = `MNEMOSYNE_${pName === 'init' ? 'RAW' : pName.replace(' ', '_')}.wav`;
+    document.body.appendChild(a); a.click(); URL.revokeObjectURL(url);
+}
+
+/* Custom Hardware Preset Cycle-Box */
+const words1 = ["EIDOLON", "SILICA", "LETHE", "CANTOR", "STRATUM", "PALE", "DUSK", "MOSAIC"];
+const words2 = ["WASH", "DUST", "FAULT", "TIDE", "FRIT", "SHATTER", "VEIL", "ECHO"];
+const presetLabelEl = document.getElementById('preset-label');
+
+function refreshPresetList() {
+    presetKeys = ['init', ...Object.keys(presets)];
+    if (currentPresetIdx >= presetKeys.length) currentPresetIdx = 0;
+    const key = presetKeys[currentPresetIdx];
+    presetLabelEl.textContent = key === 'init' ? 'INITIALIZED' : key;
+}
+refreshPresetList();
+
+function loadPresetByIndex(idx) {
+    currentPresetIdx = (idx + presetKeys.length) % presetKeys.length;
+    const key = presetKeys[currentPresetIdx];
+    presetLabelEl.textContent = key === 'init' ? 'INITIALIZED' : key;
+    if (key === 'init') return;
+    let state = presets[key];
+    if (state) {
+        for (let k in state) {
+            let el = document.getElementById(k);
+            if (el && el.classList.contains('knob-svg')) setKnobValue(el, state[k], 'preset');
+        }
+    }
+}
+
+document.getElementById('btn-preset-prev').addEventListener('click', () => loadPresetByIndex(currentPresetIdx - 1));
+document.getElementById('btn-preset-next').addEventListener('click', () => loadPresetByIndex(currentPresetIdx + 1));
+presetLabelEl.addEventListener('click', () => loadPresetByIndex(currentPresetIdx + 1));
+
+document.getElementById('btn-dump').addEventListener('click', () => {
+    let name = words1[Math.floor(Math.random() * words1.length)] + " " + words2[Math.floor(Math.random() * words2.length)];
+    let state = { ...baseParams };
+    presets[name] = state;
+    localStorage.setItem('mnemosyne_presets_v1', JSON.stringify(presets));
+    refreshPresetList();
+    currentPresetIdx = presetKeys.indexOf(name);
+    presetLabelEl.textContent = name;
+});
+
+/* ===========================================================================
+   06. 4-LANE MORPHOLOGICAL SEQUENCER
+   =========================================================================== */
+const asciiLanesContainer = document.getElementById('ascii-lanes');
+const lenBtn = document.getElementById('btn-len');
+const pageBtn = document.getElementById('btn-view-page');
+
+const laneRowEls = [];
+const laneDiceEls = [];
+const laneLenEls = [];
+const cellEls = Array.from({ length: 4 }, () => new Array(16));
+
+function initAsciiLanesDOM() {
+    asciiLanesContainer.innerHTML = '';
+    for (let l = 0; l < 4; l++) {
+        const row = document.createElement('div');
+        row.className = 'ascii-lane-row';
+        laneRowEls.push(row);
+
+        const leftCtrl = document.createElement('div');
+        leftCtrl.className = 'lane-left-ctrl';
+
+        const tag = document.createElement('div');
+        tag.className = 'lane-tag';
+        tag.style.color = laneColors[l];
+        tag.textContent = laneLabels[l];
+        tag.title = `Select Lane ${laneLabels[l]}`;
+        tag.addEventListener('click', () => selectLane(l));
+
+        const diceBtn = document.createElement('button');
+        diceBtn.className = 'lane-dice';
+        diceBtn.textContent = '⚄';
+        diceBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            rollLaneDice(l);
+        });
+        laneDiceEls.push(diceBtn);
+
+        leftCtrl.appendChild(tag);
+        leftCtrl.appendChild(diceBtn);
+        row.appendChild(leftCtrl);
+
+        for (let i = 0; i < 16; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'ascii-cell';
+            cell.dataset.l = l;
+
+            cell.addEventListener('pointerdown', e => {
+                const stepIdx = viewPage * 16 + i;
+                const stepObj = seqTracks[l][stepIdx];
+
+                if (activeTrack !== l) {
+                    activeTrack = l;
+                    document.querySelectorAll('.v-sel').forEach(b => b.classList.toggle('active', parseInt(b.dataset.v) === l));
+                    updateLenUI();
+                }
+                if (e.altKey) {
+                    laneLengths[l] = stepIdx + 1;
+                    if (playSteps[l] >= laneLengths[l]) playSteps[l] = 0;
+                    updateLenUI();
+                    renderAsciiLanes();
+                    return;
+                }
+
+                if (!modMode) {
+                    isSeqDragging = true;
+                    dragStartStep = stepIdx;
+                    dragLane = l;
+                    dragMoved = false;
+                } else {
+                    if (editingStep === stepIdx) {
+                        stepObj.locks = {};
+                        syncKnobsToEditState();
+                    } else {
+                        if (!stepObj.trig) { stepObj.trig = true; stepObj.level = 1; }
+                        editingStep = stepIdx;
+                        syncKnobsToEditState();
+                    }
+                    renderAsciiLanes();
+                }
+            });
+
+            cell.addEventListener('pointerenter', () => {
+                const stepIdx = viewPage * 16 + i;
+                if (!isSeqDragging || dragLane !== l || modMode) return;
+                if (stepIdx !== dragStartStep) {
+                    dragMoved = true;
+                    seqTracks[l][dragStartStep].trig = true;
+                    seqTracks[l][dragStartStep].level = 2;
+
+                    seqTracks[l][stepIdx].trig = true;
+                    seqTracks[l][stepIdx].level = 2;
+                    renderAsciiLanes();
+                }
+            });
+
+            cellEls[l][i] = cell;
+            row.appendChild(cell);
+        }
+
+        const lenTag = document.createElement('div');
+        lenTag.className = 'lane-len-tag';
+        lenTag.title = 'Click to select lane';
+        lenTag.addEventListener('click', () => selectLane(l));
+        laneLenEls.push(lenTag);
+        row.appendChild(lenTag);
+
+        asciiLanesContainer.appendChild(row);
+    }
+}
+
+function updateLenUI() {
+    let l = laneLengths[activeTrack];
+    lenBtn.textContent = `LEN: ${l}`;
+    let maxPages = Math.max(1, Math.ceil(l / 16));
+    if (viewPage >= maxPages) viewPage = maxPages - 1;
+    pageBtn.textContent = `PG: ${viewPage + 1}/${maxPages}`;
+}
+
+function selectLane(v) {
+    activeTrack = v;
+    document.querySelectorAll('.v-sel').forEach(b => b.classList.toggle('active', parseInt(b.dataset.v) === v));
+    if (modMode) {
+        const offset = viewPage * 16;
+        editingStep = null;
+        for (let i = 0; i < 16; i++) {
+            if (seqTracks[activeTrack][offset + i].trig) { editingStep = offset + i; break; }
+        }
+    } else {
+        editingStep = null;
+    }
+    updateLenUI();
+    syncKnobsToEditState();
+    renderAsciiLanes();
+}
+
+function syncKnobsToEditState() {
+    document.querySelectorAll('.knob-svg').forEach(k => {
+        if (seqUtilKnobs.includes(k.id)) return;
+        k.classList.remove('plocked');
+        if (modMode && editingStep !== null) {
+            const locks = seqTracks[activeTrack][editingStep].locks;
+            if (locks[k.id] !== undefined) {
+                k.classList.add('plocked');
+            }
+        }
+    });
+}
+
+function rollLaneDice(l) {
+    selectLane(l);
+    const len = laneLengths[l];
+    if (!modMode) {
+        let s = 0;
+        while (s < len) {
+            seqTracks[l][s].locks = {};
+            const r = Math.random();
+            if (r < 0.34) {
+                const span = r < 0.14 ? Math.min(4, len - s) : (r < 0.24 ? Math.min(2, len - s) : 1);
+                const lvl = r < 0.10 ? 3 : (span > 1 ? 2 : 1);
+                for (let k = 0; k < span; k++) {
+                    seqTracks[l][s + k].trig = true;
+                    seqTracks[l][s + k].level = lvl;
+                    seqTracks[l][s + k].locks = {};
+                }
+                s += span;
+            } else {
+                seqTracks[l][s].trig = false;
+                seqTracks[l][s].level = 0;
+                s++;
+            }
+        }
+    } else {
+        let hasAny = false;
+        for (let s = 0; s < len; s++) if (seqTracks[l][s].trig) hasAny = true;
+        if (!hasAny) {
+            for (let s = 0; s < len; s++) {
+                if (Math.random() < 0.32) {
+                    seqTracks[l][s].trig = true;
+                    seqTracks[l][s].level = Math.random() < 0.5 ? 2 : 1;
+                }
+            }
+        }
+        const pool = laneParamPools[l];
+        for (let s = 0; s < len; s++) {
+            if (seqTracks[l][s].trig) {
+                seqTracks[l][s].locks = {};
+                for (let p of pool) {
+                    if (Math.random() < 0.65) {
+                        let maxCap = (p === 'silica') ? 0.32 : (p === 'cantor' ? 0.28 : 0.88);
+                        seqTracks[l][s].locks[p] = Math.max(0.05, Math.min(maxCap, Math.random() * maxCap));
+                    }
+                }
+            }
+        }
+        syncKnobsToEditState();
+    }
+    renderAsciiLanes();
+}
+
+function evolveLaneOnCycle(l) {
+    const grow = baseParams['seq_grow'] || 0;
+    if (grow < 0.02) return;
+    const len = laneLengths[l];
+    const nextState = seqTracks[l].map(st => ({
+        trig: st.trig,
+        level: st.level,
+        locks: { ...st.locks }
+    }));
+
+    for (let s = 0; s < len; s++) {
+        if (Math.random() > grow * 0.65) continue;
+
+        const cur = seqTracks[l][s];
+        const prevIdx = (s - 1 + len) % len;
+        const nextIdx = (s + 1) % len;
+
+        if (cur.trig) {
+            const action = Math.random();
+            if (action < 0.35) {
+                let newLvl = cur.level + (Math.random() < 0.55 ? 1 : -1);
+                if (newLvl <= 0) {
+                    if (grow > 0.45) {
+                        nextState[s].trig = false;
+                        nextState[s].level = 0;
+                    } else {
+                        nextState[s].level = 1;
+                    }
+                } else {
+                    nextState[s].level = Math.min(3, newLvl);
+                }
+            } else if (action < 0.75) {
+                const target = Math.random() < 0.5 ? nextIdx : prevIdx;
+                if (!nextState[target].trig) {
+                    nextState[target].trig = true;
+                    nextState[target].level = Math.max(1, cur.level - 1);
+                    for (let k in cur.locks) {
+                        let drifted = cur.locks[k] + (Math.random() - 0.5) * 0.14 * grow;
+                        nextState[target].locks[k] = Math.max(0, Math.min(1, drifted));
+                    }
+                }
+            }
+            for (let k in nextState[s].locks) {
+                let d = nextState[s].locks[k] + (Math.random() - 0.5) * 0.1 * grow;
+                nextState[s].locks[k] = Math.max(0, Math.min(1, d));
+            }
+        } else if (grow > 0.3 && Math.random() < grow * 0.22) {
+            nextState[s].trig = true;
+            nextState[s].level = Math.random() < grow ? 2 : 1;
+            if (grow > 0.6 && Math.random() < 0.5) {
+                const pool = laneParamPools[l];
+                const p = pool[Math.floor(Math.random() * pool.length)];
+                nextState[s].locks[p] = Math.random() * 0.7;
+            }
+        }
+    }
+
+    for (let s = 0; s < len; s++) {
+        seqTracks[l][s] = nextState[s];
+    }
+}
+
+function renderAsciiLanes() {
+    const offset = viewPage * 16;
+
+    for (let l = 0; l < 4; l++) {
+        laneRowEls[l].classList.toggle('selected-lane', l === activeTrack);
+        laneDiceEls[l].classList.toggle('mod-dice', modMode);
+        laneDiceEls[l].title = modMode
+            ? `Roll random MOD parameter locks for Lane ${laneLabels[l]}`
+            : `Roll random step phrases for Lane ${laneLabels[l]}`;
+
+        const activeLen = laneLengths[l];
+        laneLenEls[l].textContent = `/${ String(activeLen).padStart(2, '0') }`;
+
+        for (let i = 0; i < 16; i++) {
+            const stepIdx = offset + i;
+            const stepObj = seqTracks[l][stepIdx];
+            const cell = cellEls[l][i];
+
+            const hasLocks = Object.keys(stepObj.locks).length > 0;
+            const isPlayhead = isPlaying && seqOn && playSteps[l] === stepIdx;
+            const isEditing = modMode && l === activeTrack && editingStep === stepIdx;
+
+            cell.classList.toggle('out-bounds', stepIdx >= activeLen);
+            cell.classList.toggle('trig-on', stepObj.trig);
+            cell.classList.toggle('has-plock', hasLocks);
+            cell.classList.toggle('playhead', isPlayhead);
+            cell.classList.toggle('mod-editing', isEditing);
+
+            let sym = ' · ';
+            if (isEditing) {
+                sym = '[#]';
+            } else if (isPlayhead) {
+                if (stepObj.trig) {
+                    sym = stepObj.level === 3 ? '[#]' : (stepObj.level === 2 ? '[=]' : '[|]');
+                } else {
+                    sym = ' ┃ ';
+                }
+            } else if (stepObj.trig) {
+                if (stepObj.level === 3) sym = hasLocks ? '‡#‡' : ' # ';
+                else if (stepObj.level === 2) sym = hasLocks ? '‡=‡' : ' = ';
+                else sym = hasLocks ? ' ‡ ' : ' | ';
+            }
+            if (cell.textContent !== sym) {
+                cell.textContent = sym;
+            }
+        }
+    }
+}
+
+window.addEventListener('pointerup', () => {
+    if (!isSeqDragging) return;
+    const l = dragLane;
+    const s = dragStartStep;
+    const wasDrag = dragMoved;
+    isSeqDragging = false;
+    dragMoved = false;
+
+    if (!wasDrag && l !== null && s !== null && !modMode) {
+        const st = seqTracks[l][s];
+        if (!st.trig) {
+            st.trig = true;
+            st.level = 1;
+            if (mnemoNode) mnemoNode.port.postMessage({ type: 'morph_inject', lane: l, level: 1, stepIdx: s % 16 });
+        } else if (st.level === 1) {
+            st.level = 2;
+            if (mnemoNode) mnemoNode.port.postMessage({ type: 'morph_inject', lane: l, level: 2, stepIdx: s % 16 });
+        } else {
+            st.trig = false;
+            st.level = 0;
+            st.locks = {};
+            if (mnemoNode) mnemoNode.port.postMessage({ type: 'morph_release', lane: l });
+        }
+        editingStep = null;
+        renderAsciiLanes();
+    }
+});
+
+initAsciiLanesDOM();
+updateLenUI();
+renderAsciiLanes();
+
+document.querySelectorAll('.v-sel').forEach(btn => {
+    btn.addEventListener('click', e => {
+        selectLane(parseInt(e.target.dataset.v));
+    });
+});
+
+document.getElementById('btn-seq-on').addEventListener('click', e => {
+    seqOn = !seqOn;
+    e.target.classList.toggle('active', seqOn);
+    e.target.textContent = seqOn ? 'SEQ: ON' : 'SEQ: OFF';
+    if (!seqOn) {
+        if (mnemoNode) mnemoNode.port.postMessage({ type: 'seq_clear_env' });
+        for (let pId of allSynthParams) {
+            applyTargetParam(pId, baseParams[pId], false);
+        }
+    }
+    renderAsciiLanes();
+});
+
+document.getElementById('btn-mod-mode').addEventListener('click', e => {
+    modMode = !modMode;
+    e.target.classList.toggle('active', modMode);
+    if (modMode) {
+        const offset = viewPage * 16;
+        editingStep = null;
+        for (let i = 0; i < 16; i++) {
+            if (seqTracks[activeTrack][offset + i].trig) { editingStep = offset + i; break; }
+        }
+    } else {
+        editingStep = null;
+    }
+    syncKnobsToEditState();
+    renderAsciiLanes();
+});
+
+document.getElementById('btn-hold-mode').addEventListener('click', e => {
+    holdMode = !holdMode;
+    e.target.classList.toggle('active', holdMode);
+    if (mnemoNode) mnemoNode.port.postMessage({ type: 'set_hold_mode', value: holdMode });
+});
+
+let lenDragging = false, lenStartY = 0, lenStartVal = 16, lenMoved = false;
+lenBtn.addEventListener('pointerdown', e => {
+    lenDragging = true; lenMoved = false; lenStartY = e.clientY; lenStartVal = laneLengths[activeTrack];
+    lenBtn.setPointerCapture(e.pointerId); e.preventDefault();
+});
+window.addEventListener('pointermove', e => {
+    if (!lenDragging) return;
+    let dy = lenStartY - e.clientY;
+    if (Math.abs(dy) > 4) {
+        lenMoved = true;
+        let newLen = Math.max(1, Math.min(64, Math.round(lenStartVal + dy * 0.25)));
+        laneLengths[activeTrack] = newLen;
+        if (playSteps[activeTrack] >= newLen) playSteps[activeTrack] = 0;
+        updateLenUI();
+        renderAsciiLanes();
+    }
+});
+window.addEventListener('pointerup', e => {
+    if (!lenDragging) return;
+    lenDragging = false;
+    try { lenBtn.releasePointerCapture(e.pointerId); } catch(err){}
+    if (!lenMoved) {
+        let cur = laneLengths[activeTrack];
+        laneLengths[activeTrack] = cur < 16 ? 16 : (cur < 32 ? 32 : (cur < 48 ? 48 : (cur < 64 ? 64 : 16)));
+        if (playSteps[activeTrack] >= laneLengths[activeTrack]) playSteps[activeTrack] = 0;
+        updateLenUI();
+        renderAsciiLanes();
+    }
+});
+
+pageBtn.addEventListener('click', () => {
+    let maxPages = Math.max(1, Math.ceil(laneLengths[activeTrack] / 16));
+    viewPage = (viewPage + 1) % maxPages;
+    updateLenUI();
+    renderAsciiLanes();
+});
+
+document.getElementById('btn-clr-lane').addEventListener('click', () => {
+    for (let s = 0; s < 64; s++) {
+        seqTracks[activeTrack][s].locks = {};
+        if (!modMode) {
+            seqTracks[activeTrack][s].trig = false;
+            seqTracks[activeTrack][s].level = 0;
+        }
+    }
+    if (!modMode && mnemoNode) {
+        mnemoNode.port.postMessage({ type: 'morph_release', lane: activeTrack });
+    }
+    editingStep = null;
+    syncKnobsToEditState();
+    renderAsciiLanes();
+});
+
+function applyTargetParam(kId, targetVal, isLocked) {
+    liveParams[kId] = targetVal;
+    sendParam(kId, targetVal);
+    if (!modMode || editingStep === null) {
+        const knobEl = document.getElementById(kId);
+        if (knobEl) {
+            setKnobVisual(knobEl, targetVal);
+            knobEl.classList.toggle('mod-active', isLocked);
+        }
+    }
+}
+
+function advanceSequencer() {
+    if (!seqOn) return;
+    let combinedLocks = {};
+
+    for (let l = 0; l < 4; l++) {
+        let nextStep = (playSteps[l] + 1) % laneLengths[l];
+        if (nextStep === 0 && playSteps[l] >= 0) {
+            evolveLaneOnCycle(l);
+        }
+        playSteps[l] = nextStep;
+        const stepObj = seqTracks[l][playSteps[l]];
+
+        if (stepObj.trig) {
+            if (mnemoNode) {
+                mnemoNode.port.postMessage({
+                    type: 'morph_inject',
+                    lane: l,
+                    level: stepObj.level || 1,
+                    stepIdx: playSteps[l] % 16
+                });
+            }
+            for (let kId in stepObj.locks) {
+                combinedLocks[kId] = stepObj.locks[kId];
+            }
+        } else if (mnemoNode) {
+            mnemoNode.port.postMessage({ type: 'morph_release', lane: l });
+        }
+    }
+
+    for (let kId in combinedLocks) {
+        applyTargetParam(kId, combinedLocks[kId], true);
+    }
+
+    if (!holdMode) {
+        for (let pId of allSynthParams) {
+            if (combinedLocks[pId] === undefined) {
+                applyTargetParam(pId, baseParams[pId], false);
+            }
+        }
+    }
+
+    renderAsciiLanes();
+}
+
+/* ===========================================================================
+   07. 8-BLOCK ASCII MOSAIC VISUALISER
+   =========================================================================== */
+const mosaicBlockEls = Array.from({ length: 8 }, (_, i) => document.getElementById(`mb-${i}`));
+const laneRGB = [
+    [78, 143, 96],
+    [166, 122, 60],
+    [72, 126, 158],
+    [158, 75, 75]
+];
+const blockPollutionRGB = Array.from({ length: 8 }, () => [78, 112, 94]);
+const blockPollutionEnergy = new Float32Array(8);
+let mosaicPhase = 0;
+
+function renderAsciiMosaic() {
+    const eros = liveParams['erosion'] || 0;
+    const sil = liveParams['silica'] || 0;
+    const fault = liveParams['fault'] || 0;
+
+    const chaos = Math.min(1.0, Math.max(0.0, eros * 0.5 + sil * 0.3 + fault * 0.2 + liveShatterAct * 0.6));
+    mosaicPhase += 0.16 + chaos * 0.35;
+
+    const offset = viewPage * 16;
+    const bw = 11;
+    const bh = 7;
+
+    for (let b = 0; b < 8; b++) {
+        const bGrid = Array.from({ length: bh }, () => new Array(bw).fill(' '));
+        const stepA = offset + b * 2;
+        const stepB = offset + b * 2 + 1;
+
+        const laneEnergies = [0, 0, 0, 0];
+        let dominantLane = -1;
+        let maxLevel = 0;
+
+        for (let sub = 0; sub < 2; sub++) {
+            const stIdx = sub === 0 ? stepA : stepB;
+            const cx = sub === 0 ? 2 : 8;
+            let colLevel = 0;
+            let colHasLock = false;
+            let colPlayhead = false;
+
+            for (let l = 0; l < 4; l++) {
+                const st = seqTracks[l][stIdx];
+                const isPH = isPlaying && seqOn && playSteps[l] === stIdx;
+                if (isPH) colPlayhead = true;
+
+                if (st && st.trig) {
+                    const lvl = st.level || 1;
+                    colLevel = Math.max(colLevel, lvl);
+                    if (Object.keys(st.locks).length > 0) colHasLock = true;
+                    const weight = isPH ? (lvl * 1.35) : (lvl * 0.22);
+                    laneEnergies[l] += weight;
+                    if (weight > maxLevel) {
+                        maxLevel = weight;
+                        dominantLane = l;
+                    }
+                }
+            }
+
+            if (colPlayhead) {
+                bGrid[0][cx] = '┃';
+                bGrid[1][cx] = colLevel > 0 ? '▼' : '╵';
+            } else if (colLevel > 0) {
+                bGrid[0][cx] = colHasLock ? '‡' : (colLevel >= 2 ? '|' : ':');
+                bGrid[1][cx] = colLevel >= 2 ? 'v' : '·';
+            }
+        }
+
+        const totalEnergy = laneEnergies[0] + laneEnergies[1] + laneEnergies[2] + laneEnergies[3];
+        let targetR = 78, targetG = 112, targetB = 94;
+        if (totalEnergy > 0.01) {
+            targetR = 0; targetG = 0; targetB = 0;
+            for (let l = 0; l < 4; l++) {
+                const w = laneEnergies[l] / totalEnergy;
+                targetR += laneRGB[l][0] * w;
+                targetG += laneRGB[l][1] * w;
+                targetB += laneRGB[l][2] * w;
+            }
+            blockPollutionEnergy[b] = Math.min(1.0, blockPollutionEnergy[b] * 0.75 + totalEnergy * 0.28);
+        } else {
+            blockPollutionEnergy[b] *= 0.88;
+        }
+
+        blockPollutionRGB[b][0] += (targetR - blockPollutionRGB[b][0]) * 0.25;
+        blockPollutionRGB[b][1] += (targetG - blockPollutionRGB[b][1]) * 0.25;
+        blockPollutionRGB[b][2] += (targetB - blockPollutionRGB[b][2]) * 0.25;
+
+        const rCol = Math.round(blockPollutionRGB[b][0]);
+        const gCol = Math.round(blockPollutionRGB[b][1]);
+        const bCol = Math.round(blockPollutionRGB[b][2]);
+
+        const el = mosaicBlockEls[b];
+        el.style.color = `rgb(${rCol}, ${gCol}, ${bCol})`;
+        el.style.textShadow = 'none';
+
+        const isMorphing = totalEnergy > 0.35 || chaos > 0.25 || liveHeads[b % 4] > 0.2;
+
+        for (let r = 2; r <= 5; r++) {
+            for (let w = 0; w < bw; w++) {
+                const isBorderR = (r === 2 || r === 5);
+                const isBorderW = (w === 0 || w === bw - 1);
+
+                if (!isMorphing) {
+                    if (isBorderR) bGrid[r][w] = isBorderW ? '+' : '-';
+                    else bGrid[r][w] = isBorderW ? '|' : (w % 2 === 0 ? '#' : '=');
+                } else {
+                    if (dominantLane === 0) {
+                        const shift = (r % 2 === 0) ? 1 : -1;
+                        const sw = (w + shift + bw) % bw;
+                        if (isBorderR) bGrid[r][sw] = isBorderW ? '>' : '=';
+                        else bGrid[r][sw] = (w % 3 === 0) ? '»' : '#';
+                    } else if (dominantLane === 1) {
+                        const eroChars = "·:~. ";
+                        const idx = Math.abs(Math.floor(Math.sin(mosaicPhase + w * 0.7 + r) * eroChars.length));
+                        bGrid[r][w] = isBorderR ? (w % 2 === 0 ? '·' : ':') : eroChars[idx % eroChars.length];
+                    } else if (dominantLane === 2) {
+                        const silChars = "/\\◊x*+";
+                        const idx = Math.abs(Math.floor(Math.cos(mosaicPhase * 1.5 + w + r) * silChars.length));
+                        bGrid[r][w] = silChars[idx % silChars.length];
+                    } else if (dominantLane === 3) {
+                        if (r === 2) bGrid[r][w] = isBorderW ? '┬' : '~';
+                        else if (r === 5) bGrid[r][w] = (w % 2 === 0) ? '⋮' : '╷';
+                        else bGrid[r][w] = (w % 2 === 0) ? '│' : '⋮';
+                        if (w % 3 === 1) bGrid[6][w] = '╷';
+                    } else {
+                        const shardChars = ".:;~=*+#%@\\/x+";
+                        const idx = Math.abs(Math.floor(Math.sin(mosaicPhase * 2 + w + r + b) * shardChars.length));
+                        bGrid[r][w] = shardChars[idx % shardChars.length];
+                    }
+                }
+            }
+        }
+
+        el.textContent = bGrid.map(row => row.join('')).join('\n');
+    }
+}
+
+setInterval(renderAsciiMosaic, 60);
+renderAsciiMosaic();
+</script>
+</body>
+</html>

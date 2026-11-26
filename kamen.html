@@ -1,0 +1,2112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>KAMEN // LITHIC LITURGY ENGINE</title>
+<style>
+  /* =========================================================================
+     01. DESIGN TOKENS & BASE RESET
+     ========================================================================= */
+  :root {
+    --bg: #050605;
+    --panel: rgba(9, 11, 10, 0.94);
+    --well: #040504;
+    --border-main: #5d786a;
+    --border-inner: #27342d;
+    --col-div: rgba(93, 120, 106, 0.28);
+
+    --c-green: #4e8f60;
+    --c-amber: #a67a3c;
+    --c-cyan: #487e9e;
+    --c-red: #c45858;
+    --c-red-dim: #9e4b4b;
+    --c-neutral: #c7d1cc;
+    --vellum: #e6e3da;
+    --text-main: #c7d1cc;
+    --text-dim: #6e8277;
+    --mono: 'Courier New', Menlo, Monaco, Consolas, monospace;
+  }
+
+  * {
+    box-sizing: border-box;
+    border-radius: 0;
+  }
+
+  html, body, #chassis, .column, .oled-container, .knob-container, #seq-shelf,
+  button, .ascii-cell, .lane-tag, .lane-len-tag, #ascii-bed,
+  .ascii-scrub, .cycle-box {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  html, body {
+    background-color: var(--bg);
+    color: var(--text-main);
+    font-family: var(--mono);
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+
+  /* =========================================================================
+     02. CHASSIS & UPPER DECK LAYOUT
+     ========================================================================= */
+  #chassis {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--panel);
+    border: 1px solid var(--border-main);
+    outline: 1px solid var(--border-inner);
+    outline-offset: -5px;
+    padding: 10px 8px 9px 8px;
+    box-shadow: inset 0 0 44px rgba(0, 0, 0, 0.94), 0 16px 48px rgba(0, 0, 0, 0.92);
+    transform-origin: center center;
+    width: 960px;
+  }
+
+  #chassis::before,
+  #chassis::after {
+    position: absolute;
+    font-family: var(--mono);
+    font-size: 10px;
+    line-height: 1;
+    color: var(--border-main);
+    pointer-events: none;
+  }
+  #chassis::before { content: '◈'; top: 2px; left: 3px; }
+  #chassis::after  { content: '◈'; top: 2px; right: 3px; }
+
+  .upper-deck {
+    display: grid;
+    grid-template-columns: 34px 1fr 34px;
+    width: 100%;
+    height: 368px;
+  }
+
+  .vertical-text {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    text-align: center;
+    font-size: 9.5px;
+    font-weight: bold;
+    letter-spacing: 3.5px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    width: 34px;
+    height: 368px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .panel-core {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-left: 1px solid var(--col-div);
+    border-right: 1px solid var(--col-div);
+    padding: 10px 0;
+    width: 100%;
+    height: 368px;
+  }
+
+  .column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border-right: 1px solid var(--col-div);
+    padding: 0 10px;
+    position: relative;
+    min-width: 0;
+  }
+  .column:last-child {
+    border-right: none;
+  }
+
+  .col-header {
+    width: 100%;
+    font-size: 9.5px;
+    font-weight: bold;
+    letter-spacing: 1.8px;
+    margin-bottom: 12px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid var(--border-inner);
+    text-transform: uppercase;
+    color: var(--text-dim);
+    height: 18px;
+    text-align: center;
+    transition: color 0.2s ease;
+  }
+  .col-header::before { content: '· '; color: var(--border-main); }
+  .col-header::after  { content: ' ·'; color: var(--border-main); }
+
+  /* =========================================================================
+     03. GLOBAL & OLED MODULE
+     ========================================================================= */
+  .oled-container {
+    width: 100%;
+    background: var(--well);
+    border: 1px solid var(--border-inner);
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 5px;
+    gap: 4px;
+    box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.85);
+  }
+
+  #scope {
+    width: 100%;
+    height: 38px;
+    background: #030403;
+    border: 1px solid var(--border-inner);
+    cursor: pointer;
+    display: block;
+    image-rendering: pixelated;
+  }
+
+  .oled-row {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    gap: 3px;
+    align-items: center;
+  }
+
+  .oled-btn {
+    flex: 1;
+    background: #080a09;
+    border: 1px solid #35453c;
+    color: var(--text-main);
+    font-family: var(--mono);
+    font-size: 8.5px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    padding: 3.5px 2px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: 0.1s;
+    text-align: center;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .oled-btn:hover {
+    background: #151c18;
+    border-color: var(--border-main);
+    color: var(--vellum);
+  }
+  .oled-btn.active {
+    background: var(--vellum);
+    color: #050605;
+    border-color: var(--vellum);
+  }
+  .oled-btn.active-red {
+    background: var(--c-red);
+    color: #050605;
+    border-color: var(--c-red);
+  }
+
+  .ab-row {
+    display: grid;
+    grid-template-columns: 22px 1fr 22px;
+    align-items: center;
+    width: 100%;
+    gap: 3px;
+  }
+  .ascii-scrub {
+    height: 18px;
+    background: var(--well);
+    border: 1px solid #35453c;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 8.5px;
+    letter-spacing: 0.5px;
+    color: var(--vellum);
+    cursor: ew-resize;
+    touch-action: none;
+    overflow: hidden;
+  }
+
+  .cycle-box {
+    display: grid;
+    grid-template-columns: 18px 1fr 18px;
+    align-items: stretch;
+    width: 100%;
+    background: var(--well);
+    border: 1px solid #35453c;
+    height: 20px;
+  }
+  .cycle-step {
+    background: #080a09;
+    border: none;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cycle-step:first-child { border-right: 1px solid var(--border-inner); }
+  .cycle-step:last-child  { border-left: 1px solid var(--border-inner); }
+  .cycle-step:hover {
+    background: #151c18;
+    color: var(--vellum);
+  }
+  .cycle-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    font-size: 8px;
+    font-weight: bold;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    letter-spacing: 0.4px;
+  }
+  .cycle-label:hover {
+    color: var(--vellum);
+  }
+
+  /* =========================================================================
+     04. MACHINED ROTARY POTENTIOMETERS
+     ========================================================================= */
+  .knob-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 12px;
+    width: 100%;
+  }
+  .knob-row {
+    display: flex;
+    justify-content: space-evenly;
+    width: 100%;
+    margin-bottom: 12px;
+  }
+  .knob-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+  }
+  .knob-label {
+    font-size: 8px;
+    font-weight: bold;
+    margin-bottom: 4px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .knob-svg {
+    width: 40px;
+    height: 40px;
+    cursor: ns-resize;
+    overflow: visible;
+    filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.75));
+    touch-action: none;
+  }
+  .knob-ticks {
+    stroke: #36453d;
+    stroke-width: 1.2px;
+  }
+  .knob-bg {
+    fill: #090c0a;
+    stroke-width: 1.8px;
+  }
+  .knob-cap {
+    fill: #111513;
+    stroke: #28332d;
+    stroke-width: 1px;
+  }
+  .knob-indicator {
+    stroke: var(--vellum);
+    stroke-width: 2px;
+    stroke-linecap: butt;
+  }
+  .knob-svg.plocked .knob-indicator {
+    stroke: var(--c-red);
+    stroke-width: 2.5px;
+  }
+  .knob-svg.mod-active .knob-indicator {
+    stroke: var(--c-amber);
+  }
+
+  .col-global .knob-bg { stroke: var(--c-neutral); } .col-global .knob-label { color: var(--text-dim); }
+  .col-inv .knob-bg    { stroke: var(--c-amber); }   .col-inv .knob-label    { color: var(--c-amber); }
+  .col-sanc .knob-bg   { stroke: var(--c-cyan); }    .col-sanc .knob-label   { color: var(--c-cyan); }
+  .col-fak .knob-bg    { stroke: var(--c-green); }   .col-fak .knob-label    { color: var(--c-green); }
+
+  /* =========================================================================
+     05. ALTAR MATRIX SEQUENCER SHELF
+     ========================================================================= */
+  #seq-shelf {
+    border-top: 1px solid var(--col-div);
+    margin: 0;
+    padding: 8px 10px 6px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background: rgba(4, 5, 4, 0.85);
+    width: 100%;
+    position: relative;
+    z-index: 2;
+  }
+
+  .seq-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+    white-space: nowrap;
+  }
+
+  .seq-section {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .seq-title {
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 1.6px;
+    color: var(--vellum);
+    margin-right: 4px;
+  }
+
+  .seq-btn {
+    background: #080a09;
+    border: 1px solid #35453c;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 8px;
+    font-weight: bold;
+    letter-spacing: 0.6px;
+    padding: 3px 6px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: 0.1s;
+    white-space: nowrap;
+  }
+  .seq-btn:hover {
+    background: #151c18;
+    border-color: var(--border-main);
+    color: var(--vellum);
+  }
+  .seq-btn.active {
+    background: var(--vellum);
+    color: #050605;
+    border-color: var(--vellum);
+  }
+
+  .seq-btn.v-sel[data-v="0"].active { background: var(--vellum);  border-color: var(--vellum);  color: #050605; }
+  .seq-btn.v-sel[data-v="1"].active { background: var(--c-amber); border-color: var(--c-amber); color: #050605; }
+  .seq-btn.v-sel[data-v="2"].active { background: var(--c-cyan);  border-color: var(--c-cyan);  color: #050605; }
+  .seq-btn.v-sel[data-v="3"].active { background: var(--c-green); border-color: var(--c-green); color: #050605; }
+
+  #btn-seq-on.active {
+    background: var(--c-green);
+    border-color: var(--c-green);
+    color: #050605;
+  }
+  #btn-mod-mode.active {
+    background: var(--c-red);
+    border-color: var(--c-red);
+    color: #050605;
+  }
+  #btn-hold-mode.active {
+    background: var(--c-amber);
+    border-color: var(--c-amber);
+    color: #050605;
+  }
+  #btn-len {
+    cursor: ns-resize;
+    touch-action: none;
+  }
+
+  /* =========================================================================
+     06. 4-LANE MATRIX & VOTIVE ALTAR BED
+     ========================================================================= */
+  #altar-matrix-wrap {
+    width: 100%;
+    background: var(--well);
+    border: 1px solid var(--border-inner);
+    padding: 5px 8px 4px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.92);
+  }
+
+  .ascii-lanes {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-bottom: 1px solid var(--border-inner);
+    padding-bottom: 4px;
+  }
+
+  .ascii-lane-row {
+    display: grid;
+    grid-template-columns: 28px repeat(16, 1fr) 36px;
+    align-items: center;
+    height: 15px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0px;
+  }
+  .ascii-lane-row.selected-lane {
+    background: rgba(93, 120, 106, 0.12);
+  }
+
+  .lane-tag {
+    font-weight: bold;
+    cursor: pointer;
+    padding-left: 3px;
+    font-size: 9.5px;
+  }
+
+  .lane-len-tag {
+    font-size: 9px;
+    font-weight: bold;
+    color: var(--text-dim);
+    text-align: right;
+    padding-right: 3px;
+    cursor: ns-resize;
+  }
+
+  .ascii-cell {
+    text-align: center;
+    cursor: pointer;
+    color: #2f3d35;
+    font-weight: bold;
+    line-height: 15px;
+    touch-action: none;
+  }
+  .ascii-cell:nth-child(4n+2) {
+    border-left: 1px solid #1b241f;
+  }
+  .ascii-cell:hover {
+    color: var(--vellum);
+    background: rgba(230, 227, 218, 0.06);
+  }
+  .ascii-cell.out-bounds {
+    opacity: 0.18;
+  }
+
+  .ascii-cell.trig-on[data-l="0"] { color: var(--c-neutral); }
+  .ascii-cell.trig-on[data-l="1"] { color: var(--c-amber); }
+  .ascii-cell.trig-on[data-l="2"] { color: var(--c-cyan); }
+  .ascii-cell.trig-on[data-l="3"] { color: var(--c-green); }
+
+  .ascii-cell.has-plock {
+    color: var(--c-red) !important;
+  }
+  .ascii-cell.playhead {
+    color: var(--vellum) !important;
+    background: rgba(230, 227, 218, 0.14);
+  }
+  .ascii-cell.mod-editing {
+    color: var(--vellum) !important;
+    background: rgba(196, 88, 88, 0.34) !important;
+  }
+
+  #ascii-bed {
+    font-family: var(--mono);
+    font-size: 9px;
+    line-height: 9px;
+    letter-spacing: 0px;
+    white-space: pre;
+    margin: 0;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background-image: linear-gradient(90deg, #c7d1cc, #a67a3c, #487e9e, #4e8f60);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+</style>
+</head>
+<body>
+<div id="chassis">
+    <div class="upper-deck">
+        <div class="vertical-text">KAMEN</div>
+        <div class="panel-core">
+
+            <!-- COLUMN 1: GLOBAL & OLED -->
+            <div class="column col-global" data-col="global">
+                <div class="col-header" id="hdr-global">GLOBAL</div>
+                <div class="oled-container">
+                    <canvas id="scope" title="Cycle Scope / Seismograph / BPM &amp; Chord"></canvas>
+                    <div class="oled-row">
+                        <button class="oled-btn" id="btn-activate">ACTIVATE</button>
+                        <button class="oled-btn" id="btn-scatter">SCATTER</button>
+                    </div>
+                    <div class="oled-row">
+                        <button class="oled-btn" id="btn-dump">DUMP</button>
+                        <button class="oled-btn" id="btn-rec">REC</button>
+                        <button class="oled-btn" id="btn-drift">DRIFT</button>
+                    </div>
+                    <div class="ab-row">
+                        <button class="oled-btn" id="btn-a" title="Capture State A">A</button>
+                        <div class="ascii-scrub" id="ab-scrub" title="Drag to Crossfade A / B">[■░░░░░░░]</div>
+                        <button class="oled-btn" id="btn-b" title="Capture State B">B</button>
+                    </div>
+                    <div class="cycle-box" title="Cycle Stored Presets">
+                        <button type="button" class="cycle-step" id="btn-preset-prev">&lt;</button>
+                        <div class="cycle-label" id="preset-label">INITIALIZED</div>
+                        <button type="button" class="cycle-step" id="btn-preset-next">&gt;</button>
+                    </div>
+                </div>
+
+                <div class="knob-group" style="margin-top: 6px;">
+                    <div class="knob-container">
+                        <div class="knob-label">ALTITUDE</div>
+                        <svg class="knob-svg" id="ALTITUDE" data-val="0.5" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-row" style="margin-top: 6px;">
+                    <div class="knob-container">
+                        <div class="knob-label">INCENSE</div>
+                        <svg class="knob-svg" id="INCENSE" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob-label">VELOCITY</div>
+                        <svg class="knob-svg" id="VELOCITY" data-val="0.8" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLUMN 2: I. INVOCATION -->
+            <div class="column col-inv" data-col="inv">
+                <div class="col-header" id="hdr-inv">I. INVOCATION</div>
+                <div class="knob-row" style="margin-top: 10px;">
+                    <div class="knob-container">
+                        <div class="knob-label">LITURGY</div>
+                        <svg class="knob-svg" id="LITURGY" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob-label">GRAVITY</div>
+                        <svg class="knob-svg" id="GRAVITY" data-val="0.5" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-group" style="margin: 14px 0;">
+                    <div class="knob-container">
+                        <div class="knob-label">FRAY</div>
+                        <svg class="knob-svg" id="MUTE_OFFER" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-row" style="margin-top: 10px;">
+                    <div class="knob-container">
+                        <div class="knob-label">OFFER</div>
+                        <svg class="knob-svg" id="OFFER" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob-label">TITHE</div>
+                        <svg class="knob-svg" id="TITHE" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLUMN 3: II. SANCTUARY -->
+            <div class="column col-sanc" data-col="sanc">
+                <div class="col-header" id="hdr-sanc">II. SANCTUARY</div>
+                <div class="knob-row" style="margin-top: 20px;">
+                    <div class="knob-container">
+                        <div class="knob-label">CELLA</div>
+                        <svg class="knob-svg" id="CELLA" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob-label">ORIGIN</div>
+                        <svg class="knob-svg" id="ORIGIN" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-row" style="margin-top: 52px;">
+                    <div class="knob-container">
+                        <div class="knob-label">PENANCE</div>
+                        <svg class="knob-svg" id="PENANCE" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob-label">SCHISM</div>
+                        <svg class="knob-svg" id="SCHISM" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLUMN 4: III. FAKTURA -->
+            <div class="column col-fak" data-col="fak">
+                <div class="col-header" id="hdr-fak">III. FAKTURA</div>
+                <div class="knob-group" style="margin-top: 20px;">
+                    <div class="knob-container">
+                        <div class="knob-label">KIGAL</div>
+                        <svg class="knob-svg" id="KIGAL" data-val="0.5" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+                <div class="knob-row" style="margin-top: 52px;">
+                    <div class="knob-container">
+                        <div class="knob-label">SKOL</div>
+                        <svg class="knob-svg" id="SKOL" data-val="0" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                    <div class="knob-container">
+                        <div class="knob-label">KUR</div>
+                        <svg class="knob-svg" id="KUR" data-val="0.5" viewBox="0 0 44 44">
+                            <g class="knob-ticks">
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                                <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                            </g>
+                            <circle class="knob-bg" cx="22" cy="22" r="16.5"></circle>
+                            <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                            <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="vertical-text">LITHIC LITURGY ENGINE</div>
+    </div>
+
+    <!-- ALTAR MATRIX SEQUENCER SHELF -->
+    <div id="seq-shelf">
+        <div class="seq-bar">
+            <div class="seq-section">
+                <span class="seq-title">ALTAR MATRIX</span>
+                <button class="seq-btn v-sel active" data-v="0" title="Lane A: Swell &amp; Harmonic Shimmer Pulse">A. SWELL</button>
+                <button class="seq-btn v-sel" data-v="1" title="Lane B: Drive &amp; Fold Strike">B. FOLD</button>
+                <button class="seq-btn v-sel" data-v="2" title="Lane C: Sanctuary Stone Strike">C. STONE</button>
+                <button class="seq-btn v-sel" data-v="3" title="Lane D: Kigal Sub-Pillar Pulse">D. SUB</button>
+            </div>
+            <div class="seq-section">
+                <button class="seq-btn active" id="btn-seq-on" title="Sequencer On / Off">SEQ: ON</button>
+                <button class="seq-btn" id="btn-mod-mode" title="MOD OFF: Toggle Triggers | MOD ON: Lock Dial Parameters">MOD</button>
+                <button class="seq-btn active" id="btn-hold-mode" title="HOLD: Sustain Locked Values | REV: Revert on Empty Steps">HOLD</button>
+                <button class="seq-btn" id="btn-len" title="Click to Cycle 16/32/48/64 or Drag Vertically (1-64)">LEN: 16</button>
+                <button class="seq-btn" id="btn-view-page" title="Switch 16-Step Page Window">PG: 1/1</button>
+                <button class="seq-btn" id="btn-clr-lane" title="Clear Locks or Steps on Selected Lane">CLR</button>
+                <div style="display:flex; align-items:center; gap:5px; margin-left:4px; padding-left:8px; border-left:1px solid var(--border-inner);">
+                    <span class="knob-label" style="margin:0; color:var(--c-amber); font-size:8px;">PACE</span>
+                    <svg class="knob-svg" id="seq_pace" data-val="0.38" viewBox="0 0 44 44" style="width:24px; height:24px;">
+                        <circle class="knob-bg" cx="22" cy="22" r="16.5" style="stroke:var(--c-amber);"></circle>
+                        <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                        <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                    </svg>
+                    <span class="knob-label" style="margin:0 0 0 4px; color:var(--c-red-dim); font-size:8px;">DRAG</span>
+                    <svg class="knob-svg" id="seq_drag" data-val="0.0" viewBox="0 0 44 44" style="width:24px; height:24px;">
+                        <circle class="knob-bg" cx="22" cy="22" r="16.5" style="stroke:var(--c-red-dim);"></circle>
+                        <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                        <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        <div id="altar-matrix-wrap">
+            <div class="ascii-lanes" id="ascii-lanes"></div>
+            <div id="ascii-bed"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+/* ===========================================================================
+   01. VIEWPORT SCALING
+   =========================================================================== */
+function fitToScreen() {
+    const chassis = document.getElementById('chassis');
+    chassis.style.transform = 'none';
+    const rect = chassis.getBoundingClientRect();
+    const padding = 20;
+    const scaleX = window.innerWidth / (rect.width + padding);
+    const scaleY = window.innerHeight / (rect.height + padding);
+    const scale = Math.min(1, scaleX, scaleY);
+    chassis.style.transform = `scale(${scale})`;
+}
+window.addEventListener('resize', fitToScreen);
+setTimeout(fitToScreen, 50);
+
+/* ===========================================================================
+   02. AUDIO WORKLET DSP PROCESSOR
+   =========================================================================== */
+const workletString = `
+class SafeDelay {
+    constructor(size) { this.size = size; this.buf = new Float32Array(size); this.writeIdx = 0; }
+    write(val) { if(isNaN(val)) val = 0; this.buf[this.writeIdx] = val; this.writeIdx = (this.writeIdx + 1) % this.size; }
+    read(sAgo, interp = "spline") {
+        if(isNaN(sAgo)) sAgo = 0; sAgo = Math.max(0, Math.min(sAgo, this.size - 2));
+        let rPos = this.writeIdx - sAgo; while(rPos < 0) rPos += this.size;
+        let i1 = Math.floor(rPos); let i2 = (i1 + 1) % this.size; let frac = rPos - i1;
+        let val = this.buf[i1] + frac * (this.buf[i2] - this.buf[i1]);
+        return isNaN(val) ? 0 : val;
+    }
+}
+
+class KamenProcessor extends AudioWorkletProcessor {
+    constructor() {
+        super();
+        this.p = { ALTITUDE: 0.5, INCENSE: 0, VELOCITY: 0.8, GRAVITY: 0.5, LITURGY: 0, OFFER: 0, TITHE: 0, CELLA: 0, ORIGIN: 0, PENANCE: 0, SCHISM: 0, KIGAL: 0.5, KUR: 0.5, SKOL: 0, MUTE_OFFER: 0, seq_pace: 0.38, seq_drag: 0.0 };
+
+        this.p_env0 = 0;
+        this.p_env1 = 0;
+        this.p_env2 = 0;
+        this.p_env3 = 0;
+
+        this.port.onmessage = e => {
+            if (e.data.type === 'lane_pulse') {
+                const l = e.data.lane;
+                if (l === 0) {
+                    this.p_env0 = 1.0;
+                    this.offer_ph = 0.15;
+                } else if (l === 1) {
+                    this.p_env1 = 1.0;
+                    let rt = -0.5 + (this.ruin_glided * 1.2);
+                    this.v_gate1 = (this.noise() > rt) ? 1.0 : 0.0;
+                    this.v_gate2 = (this.noise() > rt) ? 1.0 : 0.0;
+                    this.v_gate3 = (this.noise() > rt) ? 1.0 : 0.0;
+                    this.v_gate4 = (this.noise() > rt) ? 1.0 : 0.0;
+                } else if (l === 2) {
+                    this.p_env2 = 1.0;
+                } else if (l === 3) {
+                    this.p_env3 = 1.0;
+                }
+            } else if (e.data.id && this.p[e.data.id] !== undefined) {
+                this.p[e.data.id] = e.data.value;
+            }
+        };
+
+        this.lithic_buffer = new Float32Array(96000);
+        this.choir_comb_L = new SafeDelay(4800);
+        this.choir_comb_R = new SafeDelay(4800);
+
+        this.diff_L1 = new SafeDelay(411); this.diff_L2 = new SafeDelay(613);
+        this.diff_R1 = new SafeDelay(433); this.diff_R2 = new SafeDelay(599);
+
+        this.write_idx = 0;
+        this.dc_in_L = 0; this.dc_out_L = 0; this.dc_in_R = 0; this.dc_out_R = 0;
+        this.kur_glided = 0.5; this.grav_glided = 0.5;
+        this.lp_cavern_L = 0; this.lp_cavern_R = 0;
+        this.choir_lp_L = 0; this.choir_lp_R = 0;
+
+        this.glided_lit = 0.0;
+        this.offer_ph = 0;
+        this.orig_ph = 0;
+        this.rot_lp = 0;
+        this.crackle_lp = 0;
+        this.wind_lp_L = 0; this.wind_lp_R = 0;
+        this.muffle_L = 0; this.muffle_R = 0;
+
+        this.ph0 = 0;
+        this.ph1 = 0; this.ph2 = 0; this.ph3 = 0; this.ph4 = 0;
+        this.drift_ph1 = 0; this.drift_ph2 = 0; this.drift_ph3 = 0; this.drift_ph4 = 0;
+        this.r1 = 1.0; this.r2 = 1.5; this.r3 = 2.0; this.r4 = 3.0;
+
+        this.ruin_glided = 0.0;
+        this.ruin_ph1 = 0; this.ruin_ph2 = 0; this.ruin_ph3 = 0; this.ruin_ph4 = 0;
+        this.v_gate1 = 1; this.v_gate2 = 1; this.v_gate3 = 1; this.v_gate4 = 1;
+        this.g_slew1 = 1; this.g_slew2 = 1; this.g_slew3 = 1; this.g_slew4 = 1;
+
+        this.s_alt = 0.5; this.s_inc = 0; this.s_vel = 0.8; this.s_lit = 0;
+        this.s_off = 0; this.s_tithe = 0; this.s_orig = 0; this.s_pen = 0; this.s_sch = 0;
+        this.s_kig = 0.5; this.s_kur = 0.5; this.s_skol = 0; this.s_cella = 0;
+
+        this.seq_ph = 0;
+        this.prev_seq_ph = 0;
+        this.fc = 0;
+        this.last_swell = 0.5;
+        this.twopi = Math.PI * 2;
+    }
+
+    noise() { return Math.random() * 2 - 1; }
+    wrap(v, min, max) { let r = max - min; if(r === 0) return min; let res = (v - min) % r; if(res < 0) res+=r; return res+min; }
+    clip(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+    process(ins, outs) {
+        const outL = outs[0][0]; const outR = outs[0][1];
+        if (!outL || !outR) return true;
+        const sr = sampleRate;
+
+        let drag = this.clip(this.p.seq_drag, 0, 1);
+        let slew, glide_fast, glide_slow, c_slew;
+        if (drag < 0.02) {
+            slew = 0.025;
+            glide_fast = 0.015;
+            glide_slow = 0.008;
+            c_slew = 0.35;
+        } else {
+            let drag_curve = 1.0 / (1.0 + Math.pow(drag, 2.0) * 55.0);
+            slew = 0.002 * drag_curve;
+            glide_fast = 0.0005 * drag_curve;
+            glide_slow = 0.0002 * drag_curve;
+            c_slew = 0.05 * drag_curve;
+        }
+
+        let pace = this.clip(this.p.seq_pace, 0, 1);
+        let bpm = pace > 0.01 ? (15.0 + pace * 165.0) : 0.0;
+        let step_hz = (bpm / 60.0) * 4.0;
+
+        for (let i = 0; i < outL.length; i++) {
+            if (step_hz > 0) {
+                this.seq_ph = this.wrap(this.seq_ph + (step_hz / sr), 0.0, 1.0);
+                if (this.seq_ph < this.prev_seq_ph) {
+                    this.port.postMessage({ type: 'seq_tick' });
+                }
+                this.prev_seq_ph = this.seq_ph;
+            }
+
+            this.p_env0 *= 0.9993;
+            this.p_env1 *= 0.9991;
+            this.p_env2 *= 0.9992;
+            this.p_env3 *= 0.9990;
+
+            let ALTITUDE = this.p.ALTITUDE;
+            let INCENSE = this.p.INCENSE;
+            let VELOCITY = this.p.VELOCITY;
+            let GRAVITY = this.p.GRAVITY;
+            let LITURGY = this.p.LITURGY;
+            let OFFER = this.p.OFFER;
+            let TITHE = this.p.TITHE;
+            let CELLA = this.p.CELLA;
+            let ORIGIN = this.p.ORIGIN;
+            let PENANCE = this.p.PENANCE;
+            let SCHISM = this.p.SCHISM;
+            let KIGAL = this.p.KIGAL;
+            let KUR = this.p.KUR;
+            let SKOL = this.p.SKOL;
+            let MUTE_OFFER = this.p.MUTE_OFFER;
+
+            this.s_alt   = this.s_alt + slew * (this.clip(ALTITUDE, 0, 1) - this.s_alt);
+            this.s_inc   = this.s_inc + slew * (this.clip(INCENSE, 0, 1) - this.s_inc);
+            this.s_vel   = this.s_vel + slew * (this.clip(VELOCITY, 0, 1) - this.s_vel);
+            this.s_lit   = this.s_lit + slew * (this.clip(LITURGY, 0, 1) - this.s_lit);
+            this.s_off   = this.s_off + slew * (this.clip(OFFER, 0, 1) - this.s_off);
+            this.s_tithe = this.s_tithe + slew * (this.clip(TITHE, 0, 1) - this.s_tithe);
+            this.s_cella = this.s_cella + slew * (this.clip(CELLA, 0, 1) - this.s_cella);
+            this.s_orig  = this.s_orig + slew * (this.clip(ORIGIN, 0, 1) - this.s_orig);
+            this.s_pen   = this.s_pen + slew * (this.clip(PENANCE, 0, 1) - this.s_pen);
+            this.s_sch   = this.s_sch + slew * (this.clip(SCHISM, 0, 1) - this.s_sch);
+            this.s_kig   = this.s_kig + slew * (this.clip(KIGAL, 0, 1) - this.s_kig);
+            this.s_kur   = this.s_kur + slew * (this.clip(KUR, 0, 1) - this.s_kur);
+            this.s_skol  = this.s_skol + slew * (this.clip(SKOL, 0, 1) - this.s_skol);
+
+            this.grav_glided = this.grav_glided + glide_fast * (this.clip(GRAVITY, 0, 1) - this.grav_glided);
+            this.glided_lit = this.glided_lit + glide_fast * (this.s_lit - this.glided_lit);
+
+            let mute_target = this.clip(MUTE_OFFER, 0, 1);
+            this.ruin_glided = this.ruin_glided + glide_slow * (mute_target - this.ruin_glided);
+
+            this.orig_ph = this.wrap(this.orig_ph + (0.3 / sr), 0.0, 1.0);
+            let tape_wow = Math.sin(this.orig_ph * this.twopi) * (this.s_orig * 0.02 + this.p_env2 * 0.008);
+
+            let target_hz = 30.0 * Math.pow(16.0, this.glided_lit);
+            let root_hz = target_hz * (1.0 + tape_wow);
+
+            let state = Math.floor(this.s_alt * 10.999);
+            let t1 = 1.0, t2 = 1.0, t3 = 1.0, t4 = 1.0;
+            if (state === 0)      { t1 = 1.0; t2 = 2.0;    t3 = 4.0;    t4 = 2.0; }
+            else if (state === 1) { t1 = 1.0; t2 = 1.4983; t3 = 2.0;    t4 = 2.9966; }
+            else if (state === 2) { t1 = 1.0; t2 = 1.3348; t3 = 1.4983; t4 = 2.0; }
+            else if (state === 3) { t1 = 1.0; t2 = 1.1892; t3 = 1.4983; t4 = 2.0; }
+            else if (state === 4) { t1 = 1.0; t2 = 1.1892; t3 = 1.4983; t4 = 1.7818; }
+            else if (state === 5) { t1 = 1.0; t2 = 1.1892; t3 = 1.4983; t4 = 2.2449; }
+            else if (state === 6) { t1 = 1.0; t2 = 1.1892; t3 = 1.7818; t4 = 2.6696; }
+            else if (state === 7) { t1 = 1.0; t2 = 1.2599; t3 = 1.6817; t4 = 2.2449; }
+            else if (state === 8) { t1 = 1.0; t2 = 1.2599; t3 = 1.8877; t4 = 2.2449; }
+            else if (state === 9) { t1 = 1.0; t2 = 1.2599; t3 = 1.4983; t4 = 1.8877; }
+            else                  { t1 = 1.0; t2 = 1.2599; t3 = 1.4983; t4 = 2.0; }
+
+            this.r1 = this.r1 + c_slew * (t1 - this.r1);
+            this.r2 = this.r2 + c_slew * (t2 - this.r2);
+            this.r3 = this.r3 + c_slew * (t3 - this.r3);
+            this.r4 = this.r4 + c_slew * (t4 - this.r4);
+
+            this.drift_ph1 = this.wrap(this.drift_ph1 + (0.11 / sr), 0.0, 1.0);
+            this.drift_ph2 = this.wrap(this.drift_ph2 + (0.17 / sr), 0.0, 1.0);
+            this.drift_ph3 = this.wrap(this.drift_ph3 + (0.23 / sr), 0.0, 1.0);
+            this.drift_ph4 = this.wrap(this.drift_ph4 + (0.29 / sr), 0.0, 1.0);
+
+            let sch_mod = this.s_sch * 0.03 + this.p_env0 * 0.008;
+            let d1 = Math.sin(this.drift_ph1 * this.twopi) * sch_mod;
+            let d2 = Math.sin(this.drift_ph2 * this.twopi) * sch_mod;
+            let d3 = Math.sin(this.drift_ph3 * this.twopi) * sch_mod;
+            let d4 = Math.sin(this.drift_ph4 * this.twopi) * sch_mod;
+
+            this.ph1 = this.wrap(this.ph1 + (root_hz * this.r1 * (1.0 + d1)) / sr, 0.0, 1.0);
+            this.ph2 = this.wrap(this.ph2 + (root_hz * this.r2 * (1.0 + d2)) / sr, 0.0, 1.0);
+            this.ph3 = this.wrap(this.ph3 + (root_hz * this.r3 * (1.0 + d3)) / sr, 0.0, 1.0);
+            this.ph4 = this.wrap(this.ph4 + (root_hz * this.r4 * (1.0 + d4)) / sr, 0.0, 1.0);
+
+            let grav_drive = 1.0 + (this.grav_glided * 10.0) + (this.p_env1 * 5.5);
+            let o1 = Math.tanh(Math.sin(this.ph1 * this.twopi) * grav_drive);
+            let o2 = Math.tanh(Math.sin(this.ph2 * this.twopi) * grav_drive);
+            let o3 = Math.tanh(Math.sin(this.ph3 * this.twopi) * grav_drive);
+            let o4 = Math.tanh(Math.sin(this.ph4 * this.twopi) * grav_drive);
+
+            let ruin_rate = 1.0 + (this.ruin_glided * 4.0);
+            let prev_rp1 = this.ruin_ph1;
+            let prev_rp2 = this.ruin_ph2;
+            let prev_rp3 = this.ruin_ph3;
+            let prev_rp4 = this.ruin_ph4;
+
+            this.ruin_ph1 = this.wrap(this.ruin_ph1 + ((0.43 * ruin_rate) / sr), 0.0, 1.0);
+            this.ruin_ph2 = this.wrap(this.ruin_ph2 + ((0.61 * ruin_rate) / sr), 0.0, 1.0);
+            this.ruin_ph3 = this.wrap(this.ruin_ph3 + ((0.89 * ruin_rate) / sr), 0.0, 1.0);
+            this.ruin_ph4 = this.wrap(this.ruin_ph4 + ((1.13 * ruin_rate) / sr), 0.0, 1.0);
+
+            let ruin_thresh = -0.5 + (this.ruin_glided * 1.2);
+            let nval = this.noise();
+
+            if (this.ruin_ph1 < prev_rp1) this.v_gate1 = (nval > ruin_thresh) ? 1.0 : 0.0;
+            if (this.ruin_ph2 < prev_rp2) this.v_gate2 = (nval > ruin_thresh) ? 1.0 : 0.0;
+            if (this.ruin_ph3 < prev_rp3) this.v_gate3 = (nval > ruin_thresh) ? 1.0 : 0.0;
+            if (this.ruin_ph4 < prev_rp4) this.v_gate4 = (nval > ruin_thresh) ? 1.0 : 0.0;
+
+            this.g_slew1 = this.g_slew1 + 0.005 * (this.v_gate1 - this.g_slew1);
+            this.g_slew2 = this.g_slew2 + 0.005 * (this.v_gate2 - this.g_slew2);
+            this.g_slew3 = this.g_slew3 + 0.005 * (this.v_gate3 - this.g_slew3);
+            this.g_slew4 = this.g_slew4 + 0.005 * (this.v_gate4 - this.g_slew4);
+
+            o1 = o1 * (1.0 * (1.0 - this.ruin_glided) + this.g_slew1 * this.ruin_glided);
+            o2 = o2 * (1.0 * (1.0 - this.ruin_glided) + this.g_slew2 * this.ruin_glided);
+            o3 = o3 * (1.0 * (1.0 - this.ruin_glided) + this.g_slew3 * this.ruin_glided);
+            o4 = o4 * (1.0 * (1.0 - this.ruin_glided) + this.g_slew4 * this.ruin_glided);
+
+            this.offer_ph = this.wrap(this.offer_ph + (0.5 / sr), 0.0, 1.0);
+            let lung_swell = Math.sin(this.offer_ph * this.twopi) * 0.5 + 0.5;
+            this.last_swell = Math.min(1.0, lung_swell + this.p_env0 * 0.45);
+
+            let synergy = this.s_off * this.grav_glided;
+            let tithe_pwm = this.clip((this.s_tithe - 0.3) / 0.4, 0.0, 1.0) * 0.4 + (this.p_env1 * 0.15);
+            let base_fold = this.clip((this.s_tithe - 0.7) / 0.3, 0.0, 1.0) * 2.0;
+            let active_fold = base_fold + (lung_swell * synergy * 4.0) + (this.p_env1 * 1.4);
+
+            o1 = Math.sin((o1 + tithe_pwm) * (1.0 + active_fold));
+            o2 = Math.sin((o2 + tithe_pwm) * (1.0 + active_fold));
+            o3 = Math.sin((o3 + tithe_pwm) * (1.0 + active_fold));
+            o4 = Math.sin((o4 + tithe_pwm) * (1.0 + active_fold));
+
+            let pan_c = 1.0 - this.s_sch;
+            let pan_s = this.s_sch;
+
+            let base_drone_amp = 1.0 * (1.0 - (this.s_off * (1.0 - this.grav_glided))) + lung_swell * (this.s_off * (1.0 - this.grav_glided));
+            let drone_amp = base_drone_amp * (1.0 + this.p_env0 * 0.55);
+            let core_L = (o1 * (pan_c + pan_s) + o2 * pan_c + o3 * (pan_c + pan_s) + o4 * pan_c) * 0.25 * drone_amp;
+            let core_R = (o1 * pan_c + o2 * (pan_c + pan_s) + o3 * pan_c + o4 * (pan_c + pan_s)) * 0.25 * drone_amp;
+
+            let cval = this.noise();
+            this.crackle_lp = this.crackle_lp + 0.05 * (cval - this.crackle_lp);
+
+            let wind_cf = 0.005 + (Math.abs(this.crackle_lp) * this.s_inc * 0.8);
+            this.wind_lp_L = this.wind_lp_L + wind_cf * (core_L - this.wind_lp_L);
+            this.wind_lp_R = this.wind_lp_R + wind_cf * (core_R - this.wind_lp_R);
+
+            core_L = (core_L * (1.0 - this.s_inc) + this.wind_lp_L * this.s_inc) + (this.crackle_lp * this.s_inc * 0.15);
+            core_R = (core_R * (1.0 - this.s_inc) + this.wind_lp_R * this.s_inc) + (this.crackle_lp * this.s_inc * 0.15);
+
+            let orig_muffle = 1.0 * (1.0 - this.s_orig) + 0.02 * this.s_orig;
+            this.muffle_L = this.muffle_L + orig_muffle * (core_L - this.muffle_L);
+            this.muffle_R = this.muffle_R + orig_muffle * (core_R - this.muffle_R);
+
+            core_L = this.muffle_L;
+            core_R = this.muffle_R;
+            let mono_core = (core_L + core_R) * 0.5;
+
+            this.ph0 = this.wrap(this.ph0 + (root_hz * 0.5 * (1.0 + this.p_env3 * 0.25)) / sr, 0.0, 1.0);
+            let kigal_drive = 1.0 + (this.s_kig * 5.0) + (this.p_env3 * 4.5);
+            let kigal_amp = Math.min(1.2, this.s_kig * 0.8 + this.p_env3 * 0.55);
+            let kigal_pillar = Math.tanh(Math.sin(this.ph0 * this.twopi) * kigal_drive) * kigal_amp;
+
+            this.kur_glided = this.kur_glided + glide_slow * (this.s_kur - this.kur_glided);
+            let room_wave = 48000.0 / root_hz;
+            let room_mult = 8.0 * (1.0 - this.kur_glided) + 64.0 * this.kur_glided;
+
+            let base_loop_L = room_wave * room_mult;
+            let base_loop_R = room_wave * room_mult * 0.66742;
+
+            let tap1_L = this.wrap(this.write_idx - base_loop_L, 0, 96000);
+            let tap2_L = this.wrap(this.write_idx - (base_loop_L * 0.618), 0, 96000);
+            let tap3_L = this.wrap(this.write_idx - (base_loop_L * 0.382), 0, 96000);
+            let cavern_read_A = (this.lithic_buffer[Math.floor(tap1_L)] + this.lithic_buffer[Math.floor(tap2_L)] + this.lithic_buffer[Math.floor(tap3_L)]) * 0.33;
+
+            let tap1_R = this.wrap(this.write_idx - base_loop_R, 0, 96000);
+            let tap4_R = this.wrap(this.write_idx - (base_loop_R * 0.800), 0, 96000);
+            let tap5_R = this.wrap(this.write_idx - (base_loop_R * 0.200), 0, 96000);
+            let cavern_read_B = (this.lithic_buffer[Math.floor(tap1_R)] + this.lithic_buffer[Math.floor(tap4_R)] + this.lithic_buffer[Math.floor(tap5_R)]) * 0.33;
+
+            let loop_idx = this.wrap(this.write_idx - base_loop_L + (tape_wow * 80.0), 0, 96000);
+            let raw_amber = this.lithic_buffer[Math.floor(loop_idx)];
+
+            let rot_lp_coef = 1.0 * (1.0 - (this.s_orig * this.s_cella)) + 0.05 * (this.s_orig * this.s_cella);
+            let amber_read = this.rot_lp + rot_lp_coef * (raw_amber - this.rot_lp);
+            this.rot_lp = amber_read;
+
+            let cavern_read_L = cavern_read_A * (1.0 - this.s_cella) + amber_read * this.s_cella;
+            let cavern_read_R = cavern_read_B * (1.0 - this.s_cella) + amber_read * this.s_cella;
+
+            let skol_coef = Math.min(0.75, this.s_skol * 0.7 + this.p_env3 * 0.25);
+            let v_L1 = cavern_read_L + (skol_coef * this.diff_L1.read(411)); let out_L1 = this.diff_L1.read(411) - (skol_coef * v_L1); this.diff_L1.write(v_L1);
+            let v_L2 = out_L1 + (skol_coef * this.diff_L2.read(613)); let out_L2 = this.diff_L2.read(613) - (skol_coef * v_L2); this.diff_L2.write(v_L2);
+            cavern_read_L = out_L2;
+
+            let v_R1 = cavern_read_R + (skol_coef * this.diff_R1.read(433)); let out_R1 = this.diff_R1.read(433) - (skol_coef * v_R1); this.diff_R1.write(v_R1);
+            let v_R2 = out_R1 + (skol_coef * this.diff_R2.read(599)); let out_R2 = this.diff_R2.read(599) - (skol_coef * v_R2); this.diff_R2.write(v_R2);
+            cavern_read_R = out_R2;
+
+            let damp_coef = 0.02 + (this.s_kur * 0.98);
+            this.lp_cavern_L = this.lp_cavern_L + damp_coef * (cavern_read_L - this.lp_cavern_L);
+            this.lp_cavern_R = this.lp_cavern_R + damp_coef * (cavern_read_R - this.lp_cavern_R);
+
+            let fb_blocked_L = this.lp_cavern_L - this.dc_in_L + (0.995 * this.dc_out_L); this.dc_in_L = this.lp_cavern_L; this.dc_out_L = fb_blocked_L;
+            let fb_blocked_R = this.lp_cavern_R - this.dc_in_R + (0.995 * this.dc_out_R); this.dc_in_R = this.lp_cavern_R; this.dc_out_R = fb_blocked_R;
+
+            let final_abyss_L = Math.tanh(fb_blocked_L);
+            let final_abyss_R = Math.tanh(fb_blocked_R);
+
+            let choir_samps_L = 48000.0 / (root_hz * 2.0);
+            let choir_samps_R = 48000.0 / (root_hz * 2.9966);
+
+            let c_read_L = this.choir_comb_L.read(choir_samps_L);
+            let c_read_R = this.choir_comb_R.read(choir_samps_R);
+
+            this.choir_lp_L = this.choir_lp_L + 0.15 * (c_read_L - this.choir_lp_L);
+            this.choir_lp_R = this.choir_lp_R + 0.15 * (c_read_R - this.choir_lp_R);
+
+            let stone_strike = mono_core * this.p_env2 * 1.35;
+            let choir_in_L = final_abyss_L + stone_strike + (this.choir_lp_L * 0.95);
+            let choir_in_R = final_abyss_R + stone_strike + (this.choir_lp_R * 0.95);
+
+            this.choir_comb_L.write(Math.tanh(choir_in_L));
+            this.choir_comb_R.write(Math.tanh(choir_in_R));
+
+            let pen_active = Math.min(1.0, this.s_pen + this.p_env2 * 0.55);
+            let choir_out_L = this.choir_lp_L * pen_active * 0.5;
+            let choir_out_R = this.choir_lp_R * pen_active * 0.5;
+
+            let feedback_inject_L = Math.tanh(choir_out_L * 0.8);
+            let feedback_inject_R = Math.tanh(choir_out_R * 0.8);
+
+            let buffer_memory = this.lithic_buffer[Math.floor(this.write_idx)] * this.s_cella * 0.98;
+            let new_stone = mono_core * (1.0 + this.p_env2 * 0.8) + ((feedback_inject_L + feedback_inject_R) * 0.5) + buffer_memory;
+            this.lithic_buffer[Math.floor(this.write_idx)] = isNaN(new_stone) ? 0 : new_stone;
+            this.write_idx = this.wrap(this.write_idx + 1, 0, 96000);
+
+            let wet_dry_L = core_L + kigal_pillar + (final_abyss_L * 0.6) + choir_out_L;
+            let wet_dry_R = core_R + kigal_pillar + (final_abyss_R * 0.6) + choir_out_R;
+
+            let outL_val = Math.tanh(wet_dry_L * this.s_vel);
+            let outR_val = Math.tanh(wet_dry_R * this.s_vel);
+
+            outL[i] = isNaN(outL_val) ? 0 : outL_val;
+            outR[i] = isNaN(outR_val) ? 0 : outR_val;
+        }
+
+        this.fc += outL.length;
+        if (this.fc >= 1024) {
+            let eff_gates = [
+                1.0 - this.ruin_glided + this.g_slew1 * this.ruin_glided,
+                1.0 - this.ruin_glided + this.g_slew2 * this.ruin_glided,
+                1.0 - this.ruin_glided + this.g_slew3 * this.ruin_glided,
+                1.0 - this.ruin_glided + this.g_slew4 * this.ruin_glided
+            ];
+            this.port.postMessage({
+                type: 'telemetry',
+                gates: eff_gates,
+                swell: this.last_swell,
+                pulses: [this.p_env0, this.p_env1, this.p_env2, this.p_env3]
+            });
+            this.fc = 0;
+        }
+        return true;
+    }
+}
+registerProcessor('kamen-node', KamenProcessor);
+`;
+
+/* ===========================================================================
+   03. STATE & SEQUENCER DATA STRUCTURES
+   =========================================================================== */
+let audioCtx, kamenNode, analyzer, scopeData, recNode; let isPlaying = false;
+let presets = JSON.parse(localStorage.getItem('kamen_presets_v1')) || {};
+let presetKeys = ['init', ...Object.keys(presets)];
+let currentPresetIdx = 0;
+
+const canvas = document.getElementById('scope'); const ctx = canvas.getContext('2d'); canvas.width = 140; canvas.height = 40;
+
+let scopeMode = 0;
+let seismoHistory = new Array(canvas.width).fill(0);
+let liveGates = [1, 1, 1, 1];
+let liveSwell = 0.5;
+let livePulses = [0, 0, 0, 0];
+canvas.addEventListener('click', () => { scopeMode = (scopeMode + 1) % 3; });
+
+const allSynthParams = [
+    'ALTITUDE', 'INCENSE', 'VELOCITY',
+    'LITURGY', 'GRAVITY', 'MUTE_OFFER', 'OFFER', 'TITHE',
+    'CELLA', 'ORIGIN', 'PENANCE', 'SCHISM',
+    'KIGAL', 'SKOL', 'KUR'
+];
+const romanNumerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'];
+const laneLabels = ['A.', 'B.', 'C.', 'D.'];
+const laneColors = ['var(--c-neutral)', 'var(--c-amber)', 'var(--c-cyan)', 'var(--c-green)'];
+
+let laneLengths = [16, 16, 16, 16];
+let playSteps = [-1, -1, -1, -1];
+let viewPage = 0;
+let activeTrack = 0;
+let seqOn = true;
+let modMode = false;
+let holdMode = true;
+let editingStep = null;
+
+const baseParams = {};
+const liveParams = {};
+document.querySelectorAll('.knob-svg').forEach(k => {
+    baseParams[k.id] = parseFloat(k.dataset.val);
+    liveParams[k.id] = parseFloat(k.dataset.val);
+});
+
+const seqTracks = Array.from({ length: 4 }, () =>
+    Array.from({ length: 64 }, () => ({
+        trig: false,
+        locks: {}
+    }))
+);
+
+/* ===========================================================================
+   04. OLED SCOPE & PARAMETER TELEMETRY
+   =========================================================================== */
+function drawScope() {
+    requestAnimationFrame(drawScope); ctx.fillStyle = '#030403'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (scopeMode === 2) {
+        let pace = baseParams['seq_pace'] !== undefined ? baseParams['seq_pace'] : 0.38;
+        let bpm = pace > 0.01 ? Math.round(15 + pace * 165) : 0;
+        let altVal = liveParams['ALTITUDE'] !== undefined ? liveParams['ALTITUDE'] : 0.5;
+        let chordIdx = Math.floor(altVal * 10.999);
+        ctx.fillStyle = '#a67a3c';
+        ctx.font = 'bold 9.5px "Courier New", Menlo, monospace';
+        ctx.fillText(bpm > 0 && seqOn ? `${bpm} BPM | CHD ${romanNumerals[chordIdx]}` : `SEQ OFF | CHD ${romanNumerals[chordIdx]}`, 5, 16);
+        ctx.fillStyle = '#6e8277';
+        ctx.font = 'bold 8.5px "Courier New", Menlo, monospace';
+        let curStep = Math.max(1, playSteps[activeTrack] + 1);
+        let curLen = laneLengths[activeTrack];
+        ctx.fillText(`LANE ${laneLabels[activeTrack]} ${String(curStep).padStart(2, '0')}/${String(curLen).padStart(2, '0')}`, 5, 32);
+        return;
+    }
+
+    ctx.fillStyle = '#18221d';
+    for (let x = 2; x < canvas.width - 2; x += 4) ctx.fillRect(x, Math.floor(canvas.height * 0.5), 1, 1);
+
+    if (!analyzer || !isPlaying) return;
+    analyzer.getByteTimeDomainData(scopeData);
+    if (scopeMode === 0) {
+        ctx.lineWidth = 1.5; ctx.strokeStyle = '#4e8f60'; ctx.beginPath();
+        let sliceWidth = canvas.width * 1.0 / scopeData.length; let x = 0;
+        for(let i = 0; i < scopeData.length; i++) { let v = scopeData[i] / 128.0; let y = v * canvas.height / 2; if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); x += sliceWidth; }
+        ctx.lineTo(canvas.width, canvas.height/2); ctx.stroke();
+    } else if (scopeMode === 1) {
+        let peak = 0; for(let i=0; i<scopeData.length; i++) { let v = Math.abs(scopeData[i] - 128) / 128.0; if(v > peak) peak = v; }
+        seismoHistory.shift(); seismoHistory.push(peak); ctx.fillStyle = '#c45858';
+        for(let x=0; x<canvas.width; x++) { let h = seismoHistory[x] * canvas.height; ctx.fillRect(x, canvas.height - h, 1, h); }
+    }
+}
+drawScope();
+
+function setKnobVisual(knob, val) {
+    val = Math.max(0, Math.min(1, val));
+    knob.dataset.val = val;
+    let angle = -135 + (val * 270);
+    knob.querySelector('.knob-indicator').setAttribute('transform', `rotate(${angle}, 22, 22)`);
+    updateColumnGlow(knob);
+}
+
+function setKnobValue(knob, val, mode = 'user') {
+    val = Math.max(0, Math.min(1, val));
+    setKnobVisual(knob, val);
+
+    if (knob.id === 'seq_pace' || knob.id === 'seq_drag') {
+        baseParams[knob.id] = val;
+        liveParams[knob.id] = val;
+        sendParam(knob.id, val);
+        return;
+    }
+
+    if (mode === 'user') {
+        if (modMode && editingStep !== null) {
+            seqTracks[activeTrack][editingStep].locks[knob.id] = val;
+            seqTracks[activeTrack][editingStep].trig = true;
+            knob.classList.add('plocked');
+            liveParams[knob.id] = val;
+            sendParam(knob.id, val);
+            renderAsciiLanes();
+        } else {
+            baseParams[knob.id] = val;
+            liveParams[knob.id] = val;
+            knob.classList.remove('mod-active');
+            sendParam(knob.id, val);
+        }
+    } else if (mode === 'preset') {
+        baseParams[knob.id] = val;
+        liveParams[knob.id] = val;
+        sendParam(knob.id, val);
+    } else if (mode === 'seq') {
+        liveParams[knob.id] = val;
+        sendParam(knob.id, val);
+    }
+}
+
+function sendParam(id, val) { if (kamenNode) kamenNode.port.postMessage({ id: id, value: val }); }
+function syncAllParams() { document.querySelectorAll('.knob-svg').forEach(knob => { sendParam(knob.id, baseParams[knob.id]); updateColumnGlow(knob); }); }
+
+function updateColumnGlow(knob) {
+    const col = knob.closest('.column');
+    if (!col) return;
+    const colId = col.dataset.col;
+    const header = col.querySelector('.col-header');
+    if (!header) return;
+
+    const knobsInCol = col.querySelectorAll('.knob-svg');
+    let sum = 0;
+    knobsInCol.forEach(k => sum += parseFloat(k.dataset.val));
+    let avg = knobsInCol.length > 0 ? sum / knobsInCol.length : 0;
+
+    let rgb = '110, 130, 119';
+    if (colId === 'global')    { rgb = '230, 227, 218'; }
+    else if (colId === 'inv')  { rgb = '166, 122, 60'; }
+    else if (colId === 'sanc') { rgb = '72, 126, 158'; }
+    else if (colId === 'fak')  { rgb = '78, 143, 96'; }
+
+    header.style.textShadow = 'none';
+    if (avg < 0.05) {
+        header.style.color = 'var(--text-dim)';
+    } else {
+        header.style.color = `rgba(${rgb}, ${0.65 + avg * 0.35})`;
+    }
+}
+
+/* ===========================================================================
+   05. AUDIO ENGINE INITIALIZATION & INPUT/EXPORT HANDLERS
+   =========================================================================== */
+let isRecording = false; let recBuffersL = []; let recBuffersR = []; let recLength = 0;
+
+async function initAudio() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+    const blob = new Blob([workletString], { type: 'application/javascript' });
+    await audioCtx.audioWorklet.addModule(URL.createObjectURL(blob));
+    kamenNode = new AudioWorkletNode(audioCtx, 'kamen-node', { outputChannelCount: [2] });
+    kamenNode.port.onmessage = e => {
+        if (e.data.type === 'seq_tick' && seqOn) {
+            advanceSequencer();
+        } else if (e.data.type === 'telemetry') {
+            liveGates = e.data.gates;
+            liveSwell = e.data.swell;
+            if (e.data.pulses) livePulses = e.data.pulses;
+        }
+    };
+
+    analyzer = audioCtx.createAnalyser(); analyzer.fftSize = 512; scopeData = new Uint8Array(analyzer.frequencyBinCount);
+
+    recNode = audioCtx.createScriptProcessor(4096, 2, 2);
+    recNode.onaudioprocess = function(e) {
+        if (!isRecording) return;
+        recBuffersL.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+        recBuffersR.push(new Float32Array(e.inputBuffer.getChannelData(1)));
+        recLength += e.inputBuffer.getChannelData(0).length;
+    };
+
+    kamenNode.connect(analyzer); analyzer.connect(audioCtx.destination);
+    kamenNode.connect(recNode); recNode.connect(audioCtx.destination);
+
+    isPlaying = true; document.getElementById('btn-activate').classList.add('active'); syncAllParams();
+}
+
+document.querySelectorAll('.knob-svg').forEach(knob => {
+    let isDragging = false, startY, startVal;
+    setKnobVisual(knob, baseParams[knob.id]);
+    knob.addEventListener('pointerdown', e => {
+        isDragging = true; startY = e.clientY; startVal = parseFloat(knob.dataset.val);
+        knob.setPointerCapture(e.pointerId); e.preventDefault();
+    });
+    window.addEventListener('pointermove', e => {
+        if(!isDragging) return;
+        let delta = (startY - e.clientY) * 0.005;
+        setKnobValue(knob, startVal + delta, 'user');
+    });
+    window.addEventListener('pointerup', e => {
+        if(isDragging) { isDragging = false; try { knob.releasePointerCapture(e.pointerId); } catch(err){} }
+    });
+});
+
+document.getElementById('btn-activate').addEventListener('click', (e) => {
+    if (!audioCtx) { initAudio(); } else if (audioCtx.state === 'running') { audioCtx.suspend(); isPlaying = false; e.target.classList.remove('active'); } else { audioCtx.resume(); isPlaying = true; e.target.classList.add('active'); }
+});
+document.getElementById('btn-scatter').addEventListener('click', () => {
+    document.querySelectorAll('.knob-svg').forEach(knob => {
+        if (knob.id !== 'seq_pace' && knob.id !== 'seq_drag') setKnobValue(knob, Math.random(), 'user');
+    });
+});
+
+let isDrifting = false;
+document.getElementById('btn-drift').addEventListener('click', (e) => { isDrifting = !isDrifting; e.target.classList.toggle('active', isDrifting); });
+setInterval(() => {
+    if(!isDrifting || !isPlaying || editingStep !== null) return;
+    document.querySelectorAll('.knob-svg').forEach(knob => {
+        if (knob.id !== 'seq_pace' && knob.id !== 'seq_drag') {
+            let v = baseParams[knob.id] + (Math.random() - 0.5) * 0.002;
+            setKnobValue(knob, v, 'preset');
+        }
+    });
+}, 50);
+
+/* Custom ASCII A/B Crossfader */
+let stateA = null, stateB = null;
+const abScrubEl = document.getElementById('ab-scrub');
+function renderAbBar(mix) {
+    const cells = 8;
+    const pos = Math.max(0, Math.min(cells - 1, Math.round(mix * (cells - 1))));
+    let bar = '';
+    for (let i = 0; i < cells; i++) bar += (i === pos) ? '■' : '░';
+    abScrubEl.textContent = `[${bar}]`;
+}
+document.getElementById('btn-a').addEventListener('click', (e) => {
+    stateA = { ...baseParams };
+    e.target.classList.add('active');
+    document.getElementById('btn-b').classList.remove('active');
+    renderAbBar(0);
+});
+document.getElementById('btn-b').addEventListener('click', (e) => {
+    stateB = { ...baseParams };
+    e.target.classList.add('active');
+    document.getElementById('btn-a').classList.remove('active');
+    renderAbBar(1);
+});
+
+let isAbDragging = false;
+function scrubAb(clientX) {
+    if (!stateA || !stateB) return;
+    const rect = abScrubEl.getBoundingClientRect();
+    const mix = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
+    renderAbBar(mix);
+    document.querySelectorAll('.knob-svg').forEach(k => {
+        if (k.id !== 'seq_pace' && k.id !== 'seq_drag') setKnobValue(k, stateA[k.id] * (1 - mix) + stateB[k.id] * mix, 'preset');
+    });
+}
+abScrubEl.addEventListener('pointerdown', (e) => { e.preventDefault(); isAbDragging = true; scrubAb(e.clientX); try { abScrubEl.setPointerCapture(e.pointerId); } catch (_) {} });
+abScrubEl.addEventListener('pointermove', (e) => { if (isAbDragging) scrubAb(e.clientX); });
+abScrubEl.addEventListener('pointerup', (e) => { isAbDragging = false; try { abScrubEl.releasePointerCapture(e.pointerId); } catch (_) {} });
+
+document.getElementById('btn-rec').addEventListener('click', (e) => {
+    if(!audioCtx) return;
+    if (!isRecording) { isRecording = true; recBuffersL = []; recBuffersR = []; recLength = 0; e.target.classList.add('active-red'); }
+    else { isRecording = false; e.target.classList.remove('active-red'); exportWAV(); }
+});
+function exportWAV() {
+    let interleaved = new Float32Array(recLength * 2); let offset = 0;
+    for (let i = 0; i < recBuffersL.length; i++) { let bufL = recBuffersL[i]; let bufR = recBuffersR[i]; for (let j = 0; j < bufL.length; j++) { interleaved[offset++] = bufL[j]; interleaved[offset++] = bufR[j]; } }
+    let buffer = new ArrayBuffer(44 + interleaved.length * 2); let view = new DataView(buffer);
+    let writeString = function(view, offset, string) { for (let i=0; i<string.length; i++) view.setUint8(offset + i, string.charCodeAt(i)); };
+    writeString(view, 0, 'RIFF'); view.setUint32(4, 36 + interleaved.length * 2, true); writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 2, true);
+    view.setUint32(24, audioCtx.sampleRate, true); view.setUint32(28, audioCtx.sampleRate * 4, true); view.setUint16(32, 4, true); view.setUint16(34, 16, true);
+    writeString(view, 36, 'data'); view.setUint32(40, interleaved.length * 2, true);
+    let o = 44; for (let i = 0; i < interleaved.length; i++, o += 2) { let s = Math.max(-1, Math.min(1, interleaved[i])); view.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true); }
+    let blob = new Blob([view], { type: 'audio/wav' }); let url = URL.createObjectURL(blob); let a = document.createElement('a'); a.style.display = 'none'; a.href = url;
+    let pName = presetKeys[currentPresetIdx] || 'init'; a.download = `KAMEN_${pName === 'init' ? 'RAW' : pName.replace(' ', '_')}.wav`;
+    document.body.appendChild(a); a.click(); URL.revokeObjectURL(url);
+}
+
+/* Custom Hardware Preset Cycle-Box */
+const words1 = ["LITHIC", "ABYSS", "CHASM", "BASALT", "MONOLITH", "OBSIDIAN", "STONE", "SHROUD"];
+const words2 = ["LITURGY", "CHOIR", "CHANT", "VESPER", "RITUAL", "RUIN", "KIGAL", "KUR"];
+const presetLabelEl = document.getElementById('preset-label');
+
+function refreshPresetList() {
+    presetKeys = ['init', ...Object.keys(presets)];
+    if (currentPresetIdx >= presetKeys.length) currentPresetIdx = 0;
+    const key = presetKeys[currentPresetIdx];
+    presetLabelEl.textContent = key === 'init' ? 'INITIALIZED' : key;
+}
+refreshPresetList();
+
+function loadPresetByIndex(idx) {
+    currentPresetIdx = (idx + presetKeys.length) % presetKeys.length;
+    const key = presetKeys[currentPresetIdx];
+    presetLabelEl.textContent = key === 'init' ? 'INITIALIZED' : key;
+    if (key === 'init') return;
+    let state = presets[key];
+    if (state) {
+        for (let k in state) {
+            let el = document.getElementById(k);
+            if (el && el.classList.contains('knob-svg')) setKnobValue(el, state[k], 'preset');
+        }
+    }
+}
+
+document.getElementById('btn-preset-prev').addEventListener('click', () => loadPresetByIndex(currentPresetIdx - 1));
+document.getElementById('btn-preset-next').addEventListener('click', () => loadPresetByIndex(currentPresetIdx + 1));
+presetLabelEl.addEventListener('click', () => loadPresetByIndex(currentPresetIdx + 1));
+
+document.getElementById('btn-dump').addEventListener('click', () => {
+    let name = words1[Math.floor(Math.random() * words1.length)] + " " + words2[Math.floor(Math.random() * words2.length)];
+    let state = { ...baseParams };
+    presets[name] = state;
+    localStorage.setItem('kamen_presets_v1', JSON.stringify(presets));
+    refreshPresetList();
+    currentPresetIdx = presetKeys.indexOf(name);
+    presetLabelEl.textContent = name;
+});
+
+/* ===========================================================================
+   06. 4-LANE ALTAR MATRIX SEQUENCER
+   =========================================================================== */
+const asciiLanesContainer = document.getElementById('ascii-lanes');
+const lenBtn = document.getElementById('btn-len');
+const pageBtn = document.getElementById('btn-view-page');
+
+function updateLenUI() {
+    let l = laneLengths[activeTrack];
+    lenBtn.textContent = `LEN: ${l}`;
+    let maxPages = Math.max(1, Math.ceil(l / 16));
+    if (viewPage >= maxPages) viewPage = maxPages - 1;
+    pageBtn.textContent = `PG: ${viewPage + 1}/${maxPages}`;
+}
+
+function selectLane(v) {
+    activeTrack = v;
+    document.querySelectorAll('.v-sel').forEach(b => b.classList.toggle('active', parseInt(b.dataset.v) === v));
+    if (modMode) {
+        const offset = viewPage * 16;
+        editingStep = null;
+        for (let i = 0; i < 16; i++) {
+            if (seqTracks[activeTrack][offset + i].trig) { editingStep = offset + i; break; }
+        }
+    } else {
+        editingStep = null;
+    }
+    updateLenUI();
+    syncKnobsToEditState();
+    renderAsciiLanes();
+}
+
+function syncKnobsToEditState() {
+    document.querySelectorAll('.knob-svg').forEach(k => {
+        if (k.id === 'seq_pace' || k.id === 'seq_drag') return;
+        k.classList.remove('plocked');
+        if (modMode && editingStep !== null) {
+            const locks = seqTracks[activeTrack][editingStep].locks;
+            if (locks[k.id] !== undefined) {
+                k.classList.add('plocked');
+            }
+        }
+    });
+}
+
+function renderAsciiLanes() {
+    asciiLanesContainer.innerHTML = '';
+    const offset = viewPage * 16;
+
+    for (let l = 0; l < 4; l++) {
+        const row = document.createElement('div');
+        row.className = 'ascii-lane-row' + (l === activeTrack ? ' selected-lane' : '');
+
+        const tag = document.createElement('div');
+        tag.className = 'lane-tag';
+        tag.style.color = laneColors[l];
+        tag.textContent = laneLabels[l];
+        tag.title = `Select Lane ${laneLabels[l]}`;
+        tag.addEventListener('click', () => selectLane(l));
+        row.appendChild(tag);
+
+        const activeLen = laneLengths[l];
+        for (let i = 0; i < 16; i++) {
+            const stepIdx = offset + i;
+            const stepObj = seqTracks[l][stepIdx];
+            const cell = document.createElement('div');
+            cell.className = 'ascii-cell';
+            cell.dataset.l = l;
+
+            const hasLocks = Object.keys(stepObj.locks).length > 0;
+            const isPlayhead = isPlaying && seqOn && playSteps[l] === stepIdx;
+            const isEditing = modMode && l === activeTrack && editingStep === stepIdx;
+
+            if (stepIdx >= activeLen) cell.classList.add('out-bounds');
+            if (stepObj.trig) cell.classList.add('trig-on');
+            if (hasLocks) cell.classList.add('has-plock');
+            if (isPlayhead) cell.classList.add('playhead');
+            if (isEditing) cell.classList.add('mod-editing');
+
+            if (isEditing) {
+                cell.textContent = '[#]';
+            } else if (isPlayhead) {
+                cell.textContent = stepObj.trig ? '[|]' : ' · ';
+            } else if (stepObj.trig) {
+                cell.textContent = hasLocks ? ' ‡ ' : ' | ';
+            } else {
+                cell.textContent = ' · ';
+            }
+
+            cell.addEventListener('click', e => {
+                if (activeTrack !== l) {
+                    activeTrack = l;
+                    document.querySelectorAll('.v-sel').forEach(b => b.classList.toggle('active', parseInt(b.dataset.v) === l));
+                    updateLenUI();
+                }
+
+                if (e.altKey) {
+                    laneLengths[l] = stepIdx + 1;
+                    if (playSteps[l] >= laneLengths[l]) playSteps[l] = 0;
+                    updateLenUI();
+                    renderAsciiLanes();
+                    return;
+                }
+
+                if (!modMode) {
+                    stepObj.trig = !stepObj.trig;
+                    if (!stepObj.trig) {
+                        stepObj.locks = {};
+                    } else if (kamenNode) {
+                        kamenNode.port.postMessage({ type: 'lane_pulse', lane: l });
+                    }
+                    editingStep = null;
+                    renderAsciiLanes();
+                } else {
+                    if (editingStep === stepIdx) {
+                        stepObj.locks = {};
+                        syncKnobsToEditState();
+                    } else {
+                        stepObj.trig = true;
+                        editingStep = stepIdx;
+                        syncKnobsToEditState();
+                    }
+                    renderAsciiLanes();
+                }
+            });
+
+            cell.addEventListener('dblclick', () => {
+                if (modMode) {
+                    stepObj.locks = {};
+                    syncKnobsToEditState();
+                    renderAsciiLanes();
+                }
+            });
+
+            row.appendChild(cell);
+        }
+
+        const lenTag = document.createElement('div');
+        lenTag.className = 'lane-len-tag';
+        lenTag.textContent = `/${ String(activeLen).padStart(2, '0') }`;
+        lenTag.title = 'Click to select lane';
+        lenTag.addEventListener('click', () => selectLane(l));
+        row.appendChild(lenTag);
+
+        asciiLanesContainer.appendChild(row);
+    }
+}
+updateLenUI();
+renderAsciiLanes();
+
+document.querySelectorAll('.v-sel').forEach(btn => {
+    btn.addEventListener('click', e => {
+        selectLane(parseInt(e.target.dataset.v));
+    });
+});
+
+document.getElementById('btn-seq-on').addEventListener('click', e => {
+    seqOn = !seqOn;
+    e.target.classList.toggle('active', seqOn);
+    e.target.textContent = seqOn ? 'SEQ: ON' : 'SEQ: OFF';
+    if (!seqOn) {
+        for (let pId of allSynthParams) {
+            applyTargetParam(pId, baseParams[pId], false);
+        }
+    }
+    renderAsciiLanes();
+});
+
+document.getElementById('btn-mod-mode').addEventListener('click', e => {
+    modMode = !modMode;
+    e.target.classList.toggle('active', modMode);
+    if (modMode) {
+        const offset = viewPage * 16;
+        editingStep = null;
+        for (let i = 0; i < 16; i++) {
+            if (seqTracks[activeTrack][offset + i].trig) { editingStep = offset + i; break; }
+        }
+    } else {
+        editingStep = null;
+    }
+    syncKnobsToEditState();
+    renderAsciiLanes();
+});
+
+document.getElementById('btn-hold-mode').addEventListener('click', e => {
+    holdMode = !holdMode;
+    e.target.classList.toggle('active', holdMode);
+});
+
+let lenDragging = false, lenStartY = 0, lenStartVal = 16, lenMoved = false;
+lenBtn.addEventListener('pointerdown', e => {
+    lenDragging = true; lenMoved = false; lenStartY = e.clientY; lenStartVal = laneLengths[activeTrack];
+    lenBtn.setPointerCapture(e.pointerId); e.preventDefault();
+});
+window.addEventListener('pointermove', e => {
+    if (!lenDragging) return;
+    let dy = lenStartY - e.clientY;
+    if (Math.abs(dy) > 4) {
+        lenMoved = true;
+        let newLen = Math.max(1, Math.min(64, Math.round(lenStartVal + dy * 0.25)));
+        laneLengths[activeTrack] = newLen;
+        if (playSteps[activeTrack] >= newLen) playSteps[activeTrack] = 0;
+        updateLenUI();
+        renderAsciiLanes();
+    }
+});
+window.addEventListener('pointerup', e => {
+    if (!lenDragging) return;
+    lenDragging = false;
+    try { lenBtn.releasePointerCapture(e.pointerId); } catch(err){}
+    if (!lenMoved) {
+        let cur = laneLengths[activeTrack];
+        laneLengths[activeTrack] = cur < 16 ? 16 : (cur < 32 ? 32 : (cur < 48 ? 48 : (cur < 64 ? 64 : 16)));
+        if (playSteps[activeTrack] >= laneLengths[activeTrack]) playSteps[activeTrack] = 0;
+        updateLenUI();
+        renderAsciiLanes();
+    }
+});
+
+pageBtn.addEventListener('click', () => {
+    let maxPages = Math.max(1, Math.ceil(laneLengths[activeTrack] / 16));
+    viewPage = (viewPage + 1) % maxPages;
+    updateLenUI();
+    renderAsciiLanes();
+});
+
+document.getElementById('btn-clr-lane').addEventListener('click', () => {
+    for (let s = 0; s < 64; s++) {
+        seqTracks[activeTrack][s].locks = {};
+        if (!modMode) seqTracks[activeTrack][s].trig = false;
+    }
+    editingStep = null;
+    syncKnobsToEditState();
+    renderAsciiLanes();
+});
+
+function applyTargetParam(kId, targetVal, isLocked) {
+    liveParams[kId] = targetVal;
+    sendParam(kId, targetVal);
+    if (!modMode || editingStep === null) {
+        const knobEl = document.getElementById(kId);
+        if (knobEl) {
+            setKnobVisual(knobEl, targetVal);
+            knobEl.classList.toggle('mod-active', isLocked);
+        }
+    }
+}
+
+function advanceSequencer() {
+    if (!seqOn) return;
+
+    let combinedLocks = {};
+
+    for (let l = 0; l < 4; l++) {
+        playSteps[l] = (playSteps[l] + 1) % laneLengths[l];
+        const stepObj = seqTracks[l][playSteps[l]];
+
+        if (stepObj.trig) {
+            if (kamenNode) {
+                kamenNode.port.postMessage({ type: 'lane_pulse', lane: l });
+            }
+            for (let kId in stepObj.locks) {
+                combinedLocks[kId] = stepObj.locks[kId];
+            }
+        }
+    }
+
+    for (let kId in combinedLocks) {
+        applyTargetParam(kId, combinedLocks[kId], true);
+    }
+
+    renderAsciiLanes();
+}
+
+/* ===========================================================================
+   07. ASCII VOTIVE ALTAR VISUALISER
+   =========================================================================== */
+const asciiBed = document.getElementById('ascii-bed');
+let candlePhase = 0;
+
+function updateAltarGradient(chaos) {
+    const vel = liveParams['VELOCITY'] !== undefined ? liveParams['VELOCITY'] : 0.8;
+    const inc = liveParams['INCENSE'] || 0;
+    const grav = liveParams['GRAVITY'] || 0.5;
+    const pen = liveParams['PENANCE'] || 0;
+    const kig = liveParams['KIGAL'] || 0.5;
+
+    const c1 = `rgb(${Math.round(180 + vel * 40)}, ${Math.round(176 + vel * 36 - inc * 40)}, ${Math.round(166 - inc * 50)})`;
+    const c2 = `rgb(${Math.round(166 + grav * 24)}, ${Math.round(122 - grav * 30)}, ${Math.round(60 - grav * 18)})`;
+    const c3 = `rgb(${Math.round(72 + pen * 70)}, ${Math.round(126 - pen * 24)}, ${Math.round(158 - pen * 20)})`;
+    const c4 = `rgb(${Math.round(78 + chaos * 88)}, ${Math.round(143 + kig * 18 - chaos * 42)}, ${Math.round(96 - chaos * 12)})`;
+
+    asciiBed.style.backgroundImage = `linear-gradient(90deg, ${c1} 12%, ${c2} 38%, ${c4} 52%, ${c3} 74%, ${c2} 92%)`;
+    asciiBed.style.filter = 'none';
+}
+
+function renderAsciiAltar() {
+    const vel = liveParams['VELOCITY'] !== undefined ? liveParams['VELOCITY'] : 0.8;
+    const grav = liveParams['GRAVITY'] !== undefined ? liveParams['GRAVITY'] : 0.5;
+    const inc = liveParams['INCENSE'] || 0;
+    const tithe = liveParams['TITHE'] || 0;
+    const orig = liveParams['ORIGIN'] || 0;
+    const pen = liveParams['PENANCE'] || 0;
+    const sch = liveParams['SCHISM'] || 0;
+    const skol = liveParams['SKOL'] || 0;
+    const kig = liveParams['KIGAL'] !== undefined ? liveParams['KIGAL'] : 0.5;
+    const offer = liveParams['OFFER'] || 0;
+
+    const rawChaos = (Math.max(0, grav - 0.35) * 1.1 + inc * 1.3 + tithe * 1.2 + orig * 1.0 + pen * 1.1 + sch * 1.2 + skol * 0.9) / 5.2;
+    const chaos = Math.min(1.0, Math.max(0.0, rawChaos));
+
+    updateAltarGradient(chaos);
+
+    candlePhase += 0.16 + chaos * 0.32;
+    const cols = 136;
+    const rows = 6;
+    const grid = Array.from({ length: rows }, () => new Array(cols).fill(' '));
+
+    if (isPlaying && seqOn) {
+        const offset = viewPage * 16;
+        const scanSym = ['|', '*', ':', '!'];
+        for (let l = 0; l < 4; l++) {
+            let pStep = playSteps[l];
+            if (pStep >= offset && pStep < offset + 16) {
+                let colSlot = pStep - offset;
+                let scanX = Math.round(6 + (colSlot + 0.5) * ((cols - 12) / 16));
+                let isTrig = seqTracks[l][pStep] && seqTracks[l][pStep].trig;
+                if (isTrig) {
+                    for (let r = 0; r < rows; r++) {
+                        if (scanX >= 0 && scanX < cols) grid[r][scanX] = r % 2 === 0 ? scanSym[l] : ':';
+                    }
+                } else if (l === activeTrack && grid[0][scanX] === ' ') {
+                    grid[0][scanX] = '.';
+                }
+            }
+        }
+    }
+
+    const pulseBoost = (livePulses[0] + livePulses[1] + livePulses[2] + livePulses[3]) * 0.35;
+    const candles = [
+        { x: 18,  w: 3, gate: liveGates[0], isSub: false, seed: 1.1 },
+        { x: 42,  w: 3, gate: liveGates[1], isSub: false, seed: 2.7 },
+        { x: 68,  w: 5, gate: Math.min(1, kig * 1.4 + livePulses[3] * 0.8), isSub: true,  seed: 4.3 },
+        { x: 94,  w: 3, gate: liveGates[2], isSub: false, seed: 5.9 },
+        { x: 118, w: 3, gate: liveGates[3], isSub: false, seed: 7.4 }
+    ];
+
+    const breath = 1.0 - (offer * 0.35) + (liveSwell * offer * 0.5);
+    const effectiveVel = Math.min(1.0, vel * breath + pulseBoost);
+    const maxFlameRows = Math.max(0, Math.min(4, Math.round(effectiveVel * 4.2)));
+
+    for (let idx = 0; idx < candles.length; idx++) {
+        const c = candles[idx];
+        const gate = c.gate;
+        const windBend = Math.sin(candlePhase * 0.85 + c.seed) * (inc * 5.0 + sch * 6.0 + orig * 3.5);
+
+        for (let r = 4; r <= 5; r++) {
+            let meltShift = chaos > 0.3 ? Math.round(Math.sin(candlePhase * 0.5 + r * 2 + c.seed) * chaos * 2.5) : 0;
+            let bx = c.x + meltShift;
+            if (c.isSub) {
+                const bodyStr = r === 4 ? "[###]" : "[===]";
+                for (let k = 0; k < 5; k++) {
+                    let px = bx - 2 + k;
+                    if (px >= 0 && px < cols) grid[r][px] = chaos > 0.7 && Math.random() < chaos * 0.35 ? '~' : bodyStr[k];
+                }
+            } else {
+                const bodyStr = r === 4 ? "|#|" : "|=|";
+                for (let k = 0; k < 3; k++) {
+                    let px = bx - 1 + k;
+                    if (px >= 0 && px < cols) grid[r][px] = chaos > 0.7 && Math.random() < chaos * 0.35 ? ':' : bodyStr[k];
+                }
+            }
+        }
+
+        if (gate < 0.35 || maxFlameRows === 0) {
+            for (let fr = 1; fr <= 3; fr++) {
+                let r = 4 - fr;
+                let drift = Math.round(Math.sin(candlePhase * 1.2 + fr * 1.5 + c.seed) * (1.5 + inc * 3.5));
+                let px = c.x + drift;
+                if (px >= 0 && px < cols) {
+                    grid[r][px] = fr === 1 ? "'" : (fr === 2 ? ':' : '~');
+                }
+            }
+        } else {
+            for (let fr = 1; fr <= maxFlameRows; fr++) {
+                let r = 4 - fr;
+                let heightRatio = fr / maxFlameRows;
+                let flicker = Math.sin(candlePhase * 2.1 + fr * 1.4 + c.seed) * (0.5 + chaos * 2.5);
+                let cx = Math.round(c.x + windBend * heightRatio + flicker);
+
+                if (fr === maxFlameRows) {
+                    let tipChar = effectiveVel > 0.6 ? '^' : (effectiveVel > 0.25 ? '*' : '.');
+                    if (cx >= 0 && cx < cols) grid[r][cx] = tipChar;
+                } else if (fr === 1 && maxFlameRows >= 2) {
+                    let coreStr = c.isSub ? "( | )" : "(|)";
+                    let half = Math.floor(coreStr.length / 2);
+                    for (let k = 0; k < coreStr.length; k++) {
+                        let px = cx - half + k;
+                        if (px >= 0 && px < cols) grid[r][px] = coreStr[k];
+                    }
+                } else {
+                    let midStr = c.isSub ? "/ * \\" : "(*)";
+                    let half = Math.floor(midStr.length / 2);
+                    for (let k = 0; k < midStr.length; k++) {
+                        let px = cx - half + k;
+                        if (px >= 0 && px < cols) grid[r][px] = midStr[k];
+                    }
+                }
+            }
+        }
+    }
+
+    if (chaos > 0.08) {
+        const ghostChars = ".,:;~=*+#%@";
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (grid[r][c] !== ' ' && chaos > 0.2) {
+                    let smearDir = Math.sin(candlePhase * 0.4 + r) >= 0 ? 1 : -1;
+                    let smearLen = Math.floor(chaos * 7);
+                    for (let s = 1; s <= smearLen; s++) {
+                        let sc = c + s * smearDir;
+                        if (sc >= 0 && sc < cols && grid[r][sc] === ' ') {
+                            grid[r][sc] = s === smearLen ? '.' : (s % 2 === 0 ? '~' : '-');
+                        }
+                    }
+                } else if (grid[r][c] === ' ') {
+                    let hash = Math.sin((c + Math.floor(candlePhase * 2)) * 12.9898 + r * 78.233) * 43758.5453;
+                    let rand = hash - Math.floor(hash);
+                    if (rand > 0.982 - chaos * 0.16) {
+                        let gIdx = Math.min(ghostChars.length - 1, Math.floor(rand * chaos * ghostChars.length));
+                        grid[r][c] = ghostChars[gIdx];
+                    }
+                }
+            }
+        }
+    }
+
+    asciiBed.textContent = grid.map(row => row.join('')).join('\n');
+}
+
+setInterval(renderAsciiAltar, 60);
+renderAsciiAltar();
+</script>
+</body>
+</html>

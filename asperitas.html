@@ -1,0 +1,3093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ASPERITAS // WEATHERING ENGINE</title>
+<style>
+  /* =========================================================================
+     01. DESIGN TOKENS & BASE RESET
+     ========================================================================= */
+  :root {
+    --bg: #050605;
+    --panel: rgba(9, 11, 10, 0.94);
+    --well: #040504;
+    --border-main: #5d786a;
+    --border-inner: #27342d;
+    --col-div: rgba(93, 120, 106, 0.28);
+
+    --c-green: #4e8f60;
+    --c-amber: #a67a3c;
+    --c-cyan: #487e9e;
+    --c-red: #c45858;
+    --c-red-dim: #9e4b4b;
+    --c-sage: #6a8778;
+    --c-slate: #62788c;
+    --vellum: #e6e3da;
+    --text-main: #c7d1cc;
+    --text-dim: #6e8277;
+    --mono: 'Courier New', Menlo, Monaco, Consolas, monospace;
+  }
+
+  * {
+    box-sizing: border-box;
+    border-radius: 0;
+  }
+
+  html, body, #bg-viz-canvas, #tank-canvas, #chassis, .column, .oled-container,
+  .knob-container, #matrix-deck, button, .m-cell, .m-len, .m-dice-sq,
+  .ascii-scrub, .cycle-box {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--bg);
+    color: var(--text-main);
+    font-family: var(--mono);
+    touch-action: manipulation;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* =========================================================================
+     02. FULL-FRAME BACKDROP VISUALISER & OVERLAYS
+     ========================================================================= */
+  #bg-viz-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    display: none;
+    background-color: #050605;
+    z-index: 1;
+  }
+  #bg-viz-canvas.active {
+    display: block;
+  }
+
+  #qm-toast {
+    position: fixed;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    pointer-events: none;
+    background: rgba(6, 8, 7, 0.96);
+    border: 1px solid var(--border-main);
+    outline: 1px solid var(--border-inner);
+    outline-offset: -4px;
+    padding: 4px 12px;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    font-weight: bold;
+    letter-spacing: 1.3px;
+    text-transform: uppercase;
+    color: var(--vellum);
+    opacity: 0;
+    transition: opacity 0.14s ease;
+    white-space: nowrap;
+  }
+  #qm-toast.visible {
+    opacity: 1;
+  }
+
+  #drop-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(4, 5, 4, 0.92);
+    pointer-events: none;
+  }
+  #drop-overlay.active {
+    display: flex;
+  }
+  .drop-plaque {
+    background: var(--panel);
+    border: 1px solid var(--border-main);
+    outline: 1px solid var(--border-inner);
+    outline-offset: -6px;
+    padding: 24px 40px;
+    text-align: center;
+  }
+  .drop-title {
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 3.5px;
+    color: var(--vellum);
+  }
+  .drop-sub {
+    margin-top: 6px;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--c-amber);
+  }
+
+  /* =========================================================================
+     03. CHASSIS LAYOUT
+     ========================================================================= */
+  #chassis-wrap {
+    position: relative;
+    z-index: 20;
+    width: 100%;
+    max-width: 940px;
+    padding: 8px;
+    display: flex;
+    justify-content: center;
+  }
+
+  #chassis {
+    position: relative;
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border-main);
+    outline: 1px solid var(--border-inner);
+    outline-offset: -5px;
+    padding: 9px 7px 8px 7px;
+    box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.94), 0 16px 48px rgba(0, 0, 0, 0.92);
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 16px);
+    overflow-y: auto;
+  }
+
+  #chassis::before,
+  #chassis::after {
+    position: absolute;
+    font-size: 10px;
+    line-height: 1;
+    color: var(--border-main);
+    pointer-events: none;
+  }
+  #chassis::before { content: '◈'; top: 2px; left: 3px; }
+  #chassis::after  { content: '◈'; top: 2px; right: 3px; }
+
+  .upper-deck {
+    display: grid;
+    grid-template-columns: 22px 1fr 22px;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .vertical-text {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    text-align: center;
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .panel-core {
+    display: grid;
+    grid-template-columns: 216px 1fr 1.15fr 1fr;
+    border-left: 1px solid var(--col-div);
+    border-right: 1px solid var(--col-div);
+    min-width: 0;
+  }
+
+  .column {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 3px 8px 5px 8px;
+    border-right: 1px solid var(--col-div);
+    min-width: 0;
+  }
+  .column:last-child {
+    border-right: none;
+  }
+
+  .col-header {
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    text-align: center;
+    margin-bottom: 5px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid var(--border-inner);
+    line-height: 1.1;
+  }
+  .col-header::before { content: '· '; color: var(--border-main); }
+  .col-header::after  { content: ' ·'; color: var(--border-main); }
+
+  /* =========================================================================
+     04. COLUMN I: SOURCE, OLED + BPM & AMBER CAPTURE BUFFERS
+     ========================================================================= */
+  .oled-container {
+    width: 100%;
+    background: var(--well);
+    border: 1px solid var(--border-inner);
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .scope-header-bar {
+    display: flex;
+    align-items: stretch;
+    gap: 3px;
+    width: 100%;
+  }
+
+  #scope {
+    flex: 1;
+    min-width: 0;
+    height: 32px;
+    background: #030403;
+    border: 1px solid var(--border-inner);
+    cursor: pointer;
+    display: block;
+    image-rendering: pixelated;
+  }
+
+  #bpm-readout {
+    flex: 0 0 60px;
+    background: #060807;
+    border: 1px solid var(--border-inner);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 8px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    cursor: ns-resize;
+    touch-action: none;
+    padding: 0 2px;
+    white-space: nowrap;
+  }
+  #bpm-readout.active {
+    color: var(--vellum);
+    border-color: var(--border-main);
+  }
+
+  .oled-row {
+    display: flex;
+    width: 100%;
+    gap: 3px;
+    align-items: center;
+  }
+
+  .oled-btn {
+    flex: 1;
+    background: #080a09;
+    border: 1px solid #35453c;
+    color: var(--text-main);
+    font-family: var(--mono);
+    font-size: 7.8px;
+    font-weight: bold;
+    letter-spacing: 0.3px;
+    padding: 3px 2px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: 0.1s;
+    text-align: center;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .oled-btn:hover:not(:disabled) {
+    background: #151c18;
+    border-color: var(--border-main);
+    color: var(--vellum);
+  }
+  .oled-btn.active {
+    background: var(--vellum);
+    color: #050605;
+    border-color: var(--vellum);
+  }
+  .oled-btn.active-amber {
+    background: var(--c-amber);
+    color: #050605;
+    border-color: var(--c-amber);
+  }
+  .oled-btn.active-green {
+    background: var(--c-green);
+    color: #050605;
+    border-color: var(--c-green);
+  }
+  .oled-btn.active-cyan {
+    background: var(--c-cyan);
+    color: #050605;
+    border-color: var(--c-cyan);
+  }
+  .oled-btn.active-red {
+    background: var(--c-red);
+    color: #050605;
+    border-color: var(--c-red);
+  }
+
+  .cycle-box {
+    display: grid;
+    grid-template-columns: 15px 1fr 15px;
+    align-items: stretch;
+    width: 100%;
+    background: var(--well);
+    border: 1px solid #35453c;
+    height: 19px;
+    min-width: 0;
+  }
+  .cycle-step {
+    background: #080a09;
+    border: none;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 8.5px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cycle-step:first-child { border-right: 1px solid var(--border-inner); }
+  .cycle-step:last-child  { border-left: 1px solid var(--border-inner); }
+  .cycle-step:hover {
+    background: #151c18;
+    color: var(--vellum);
+  }
+  .cycle-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    font-size: 7.5px;
+    font-weight: bold;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+  .cycle-label:hover { color: var(--vellum); }
+
+  .amber-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    width: 100%;
+    margin-top: 4px;
+  }
+  .amber-btn {
+    background: #080706;
+    border: 1px solid #473926;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 7.5px;
+    font-weight: bold;
+    padding: 3px 2px;
+    cursor: pointer;
+    text-transform: uppercase;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .amber-btn:hover {
+    background: #14110c;
+    border-color: var(--c-amber);
+    color: var(--vellum);
+  }
+  .amber-btn .amb-bar {
+    font-size: 7.5px;
+    letter-spacing: 0px;
+    color: #54442e;
+    white-space: nowrap;
+  }
+  .amber-btn.active {
+    background: #1c150c;
+    border-color: var(--c-amber);
+    color: var(--c-amber);
+  }
+  .amber-btn.active .amb-bar {
+    color: var(--vellum);
+  }
+
+  /* =========================================================================
+     05. ROTARY POTENTIOMETERS
+     ========================================================================= */
+  .knob-row {
+    display: flex;
+    justify-content: space-evenly;
+    align-items: center;
+    width: 100%;
+    margin: auto 0;
+    gap: 4px;
+  }
+
+  .knob-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+  }
+  .knob-label {
+    font-size: 7.5px;
+    font-weight: bold;
+    margin-bottom: 3px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .knob-svg {
+    width: 36px;
+    height: 36px;
+    cursor: ns-resize;
+    overflow: visible;
+    filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.75));
+    touch-action: none;
+  }
+  .knob-ticks {
+    stroke: #36453d;
+    stroke-width: 1.2px;
+  }
+  .knob-bezel {
+    fill: #090c0a;
+    stroke-width: 1.8px;
+  }
+  .knob-cap {
+    fill: #111513;
+    stroke: #28332d;
+    stroke-width: 1px;
+  }
+  .knob-indicator {
+    stroke: var(--vellum);
+    stroke-width: 2px;
+    stroke-linecap: butt;
+  }
+  .knob-readout {
+    margin-top: 2px;
+    font-family: var(--mono);
+    font-size: 7.5px;
+    color: var(--text-dim);
+  }
+  .knob-container:hover .knob-readout,
+  .knob-container.dragging .knob-readout {
+    color: var(--vellum);
+  }
+
+  .col-src .knob-bezel { stroke: var(--c-green); }   .col-src .knob-label { color: var(--c-green); }
+  .col-wea .knob-bezel { stroke: var(--c-amber); }   .col-wea .knob-label { color: var(--c-amber); }
+  .col-dee .knob-bezel { stroke: var(--c-cyan); }    .col-dee .knob-label { color: var(--c-cyan); }
+  .col-mac .knob-bezel { stroke: var(--c-red-dim); } .col-mac .knob-label { color: var(--c-red-dim); }
+
+  /* =========================================================================
+     06. UTILITY STRIP (SCATTER, DRIFT, A/B MORPH, PRESETS & VIEW)
+     ========================================================================= */
+  .utility-strip {
+    border-top: 1px solid var(--col-div);
+    margin-top: 6px;
+    padding: 5px 6px;
+    background: rgba(4, 5, 4, 0.85);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .utility-strip .oled-btn {
+    flex: 0 0 auto;
+    padding: 3px 8px;
+    font-size: 8px;
+  }
+
+  .util-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .ascii-scrub {
+    height: 19px;
+    background: var(--well);
+    border: 1px solid #35453c;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 5px;
+    font-size: 8.5px;
+    letter-spacing: 0px;
+    color: var(--vellum);
+    cursor: ew-resize;
+    touch-action: none;
+    white-space: nowrap;
+  }
+
+  /* =========================================================================
+     07. WEATHERING MATRIX SEQUENCER + ASCII WEATHERING STRIP
+     ========================================================================= */
+  #matrix-deck {
+    border-top: 1px solid var(--col-div);
+    margin-top: 5px;
+    padding: 6px 6px 4px 6px;
+    background: rgba(5, 7, 6, 0.92);
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .matrix-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 5px;
+    flex-wrap: wrap;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border-inner);
+  }
+
+  .matrix-title {
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 1.4px;
+    color: var(--vellum);
+    white-space: nowrap;
+  }
+
+  .matrix-controls {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-wrap: wrap;
+  }
+
+  .m-btn {
+    background: #080a09;
+    border: 1px solid #35453c;
+    color: var(--text-main);
+    font-family: var(--mono);
+    font-size: 8px;
+    font-weight: bold;
+    padding: 3px 6px;
+    cursor: pointer;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .m-btn:hover {
+    border-color: var(--border-main);
+    color: var(--vellum);
+  }
+  .m-btn.active-green { background: var(--c-green); color: #050605; border-color: var(--c-green); }
+  .m-btn.active-amber { background: var(--c-amber); color: #050605; border-color: var(--c-amber); }
+  .m-btn.active-cyan  { background: var(--c-cyan);  color: #050605; border-color: var(--c-cyan); }
+  .m-btn.active-red   { background: var(--c-red);   color: #050605; border-color: var(--c-red); }
+  .m-btn.active-vel   { background: var(--vellum);  color: #050605; border-color: var(--vellum); }
+
+  .mini-knobs-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .mini-knob-item {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 8px;
+    font-weight: bold;
+    cursor: ns-resize;
+    touch-action: none;
+  }
+  .mini-knob-svg {
+    width: 22px;
+    height: 22px;
+    overflow: visible;
+  }
+
+  .matrix-grid-box {
+    background: var(--well);
+    border: 1px solid var(--border-inner);
+    padding: 4px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .m-lane {
+    display: grid;
+    grid-template-columns: 44px 1fr 34px;
+    align-items: center;
+    gap: 4px;
+    height: 17px;
+  }
+
+  .m-lane-tag {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 8.5px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  .m-dice-sq {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 13px;
+    height: 13px;
+    border: 1px solid #35453c;
+    background: #080a09;
+    font-size: 8.5px;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+  .m-dice-sq:hover {
+    border-color: var(--vellum);
+    color: var(--vellum);
+    background: #151c18;
+  }
+
+  .m-steps-row {
+    display: flex;
+    align-items: center;
+    height: 15px;
+    min-width: 0;
+  }
+
+  .m-cell {
+    flex: 1;
+    min-width: 2px;
+    height: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9.5px;
+    font-weight: bold;
+    color: #2f3d35;
+    cursor: pointer;
+    border-right: 1px solid transparent;
+    touch-action: none;
+  }
+  .m-cell.beat-mark {
+    border-left: 1px solid #1b241f;
+  }
+  .m-cell:hover {
+    color: var(--vellum);
+  }
+  .m-lane[data-lane="0"] .m-cell.on { color: var(--c-green); }
+  .m-lane[data-lane="1"] .m-cell.on { color: var(--c-amber); }
+  .m-lane[data-lane="2"] .m-cell.on { color: var(--c-cyan); }
+  .m-lane[data-lane="3"] .m-cell.on { color: var(--c-red-dim); }
+
+  .m-cell.on.modded {
+    color: var(--c-red) !important;
+    background: rgba(196, 88, 88, 0.16);
+  }
+
+  .m-cell.head {
+    background: rgba(230, 227, 218, 0.15);
+    color: var(--vellum) !important;
+  }
+  .m-cell.head.modded {
+    background: rgba(196, 88, 88, 0.34);
+    color: var(--vellum) !important;
+  }
+
+  .m-len {
+    font-size: 8.5px;
+    font-weight: bold;
+    color: var(--text-dim);
+    text-align: right;
+    cursor: ew-resize;
+    touch-action: none;
+    white-space: nowrap;
+  }
+  .m-len:hover {
+    color: var(--vellum);
+  }
+
+  .symbology-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 7.5px;
+    color: var(--text-dim);
+    padding: 2px 2px 0 2px;
+    border-top: 1px solid #141c17;
+    margin-top: 2px;
+    letter-spacing: 0.6px;
+  }
+  .sym-red {
+    color: var(--c-red);
+    font-weight: bold;
+  }
+
+  #tank-canvas {
+    width: 100%;
+    height: 92px;
+    display: block;
+    background: #030403;
+    border-top: 1px solid var(--border-inner);
+    margin-top: 3px;
+    image-rendering: pixelated;
+  }
+  #tank-canvas.hidden-strip {
+    display: none;
+  }
+
+  /* =========================================================================
+     08. RESPONSIVE BREAKPOINTS
+     ========================================================================= */
+  @media (max-width: 860px) {
+    .upper-deck { grid-template-columns: 1fr; }
+    .vertical-text { display: none; }
+    .panel-core {
+      grid-template-columns: 1fr 1fr;
+      border-left: none;
+      border-right: none;
+      gap: 6px 0;
+    }
+    .column { border-bottom: 1px solid var(--col-div); }
+    .column:nth-child(2n) { border-right: none; }
+    .column:nth-last-child(-n+2) { border-bottom: none; }
+  }
+
+  @media (max-width: 540px) {
+    .panel-core { grid-template-columns: 1fr; }
+    .column { border-right: none; border-bottom: 1px solid var(--col-div); }
+    .column:last-child { border-bottom: none; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- FULL-FRAME EXPANDED BACKDROP CANVAS ([V] MODE) -->
+  <canvas id="bg-viz-canvas" aria-hidden="true"></canvas>
+
+  <!-- STATUS TOAST & DROP OVERLAY -->
+  <div id="qm-toast">INITIALIZED</div>
+  <div id="drop-overlay">
+    <div class="drop-plaque">
+      <div class="drop-title">CAST AUDIO INTO WEATHERING TANK</div>
+      <div class="drop-sub">DROP WAV · MP3 · FLAC · OGG · AIFF · M4A</div>
+    </div>
+  </div>
+
+  <!-- HARDWARE CHASSIS -->
+  <div id="chassis-wrap">
+    <div id="chassis">
+
+      <!-- UPPER DECK: 4 DSP COLUMNS -->
+      <div class="upper-deck">
+        <div class="vertical-text">ASPERITAS</div>
+
+        <div class="panel-core">
+
+          <!-- COLUMN I: SOURCE & AMBER CAPTURE BUFFERS -->
+          <div class="column col-src" data-col="src">
+            <div class="col-header" id="hdr-src">I. SOURCE</div>
+
+            <div class="oled-container">
+              <div class="scope-header-bar">
+                <canvas id="scope" width="120" height="32" title="Toggle Waveform / Seismograph"></canvas>
+                <div id="bpm-readout" title="Reads Sequencer PACE Tempo (20-180 BPM) | Drag Vertically">| | BPM</div>
+              </div>
+
+              <div class="oled-row">
+                <button class="oled-btn" id="btn-activate" title="Start / Suspend Audio Engine">ACT</button>
+                <button class="oled-btn" id="btn-mic" title="Engage Live Audio Input">MIC</button>
+                <button class="oled-btn" id="btn-file" title="Load Audio File">FILE</button>
+                <button class="oled-btn active-amber" id="btn-mon" title="Toggle Incoming Audio Monitor / Bypass Over Frozen Buffers">MON</button>
+                <button class="oled-btn" id="btn-rec" title="Record Stereo WAV Output">REC</button>
+                <input type="file" id="file-upload" accept=".wav,.mp3,.m4a,.flac,.ogg,.aiff,.aif" style="display:none;">
+              </div>
+
+              <div class="cycle-box" title="Cycle Audio Input Channel">
+                <button type="button" class="cycle-step" id="btn-mic-prev">&lt;</button>
+                <div class="cycle-label" id="mic-device-label">DEFAULT INPUT</div>
+                <button type="button" class="cycle-step" id="btn-mic-next">&gt;</button>
+              </div>
+            </div>
+
+            <div class="knob-row" style="margin-top: 4px;">
+              <div class="knob-container">
+                <div class="knob-label">SUBLIMATE</div>
+                <svg class="knob-svg" id="sublimate" data-val="0" data-default="0" viewBox="0 0 44 44" title="Auto-Swell Attack Envelope">
+                  <g class="knob-ticks">
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                  </g>
+                  <circle class="knob-bezel" cx="22" cy="22" r="15.5"></circle>
+                  <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                  <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                </svg>
+                <div class="knob-readout" id="val-sublimate">0.00</div>
+              </div>
+
+              <div class="knob-container">
+                <div class="knob-label">UNDERTOW</div>
+                <svg class="knob-svg" id="undertow" data-val="0" data-default="0" viewBox="0 0 44 44" title="Reverse Cloud Crossfade (1.0x Upper / 0.5x Sub)">
+                  <g class="knob-ticks">
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                  </g>
+                  <circle class="knob-bezel" cx="22" cy="22" r="15.5"></circle>
+                  <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                  <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                </svg>
+                <div class="knob-readout" id="val-undertow">0.00</div>
+              </div>
+            </div>
+
+            <div class="amber-container">
+              <button type="button" class="amber-btn" id="btn-amber1" title="Freeze 2.0s Diffused Upper Cloud [1]">
+                <span>AMBER I</span>
+                <span class="amb-bar" id="amb1-bar">[░░░░░░]</span>
+              </button>
+              <button type="button" class="amber-btn" id="btn-amber2" title="Freeze 4.0s Half-Speed Sub-Octave Cloud [2]">
+                <span>AMBER II</span>
+                <span class="amb-bar" id="amb2-bar">[░░░░░░]</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- COLUMN II: WEATHERING -->
+          <div class="column col-wea" data-col="wea">
+            <div class="col-header" id="hdr-wea">II. WEATHERING</div>
+
+            <div class="knob-row">
+              <div class="knob-container">
+                <div class="knob-label">PATINA</div>
+                <svg class="knob-svg" id="rhizome" data-val="0" data-default="0" viewBox="0 0 44 44" title="Saturation &amp; Low-Pass Oxidation">
+                  <g class="knob-ticks">
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                  </g>
+                  <circle class="knob-bezel" cx="22" cy="22" r="15.5"></circle>
+                  <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                  <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                </svg>
+                <div class="knob-readout" id="val-rhizome">0.00</div>
+              </div>
+            </div>
+
+            <div class="knob-row">
+              <div class="knob-container">
+                <div class="knob-label">THICKET</div>
+                <svg class="knob-svg" id="thicket" data-val="0" data-default="0" viewBox="0 0 44 44" title="Damping &amp; Spectral Density">
+                  <g class="knob-ticks">
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                  </g>
+                  <circle class="knob-bezel" cx="22" cy="22" r="15.5"></circle>
+                  <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                  <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                </svg>
+                <div class="knob-readout" id="val-thicket">0.00</div>
+              </div>
+
+              <div class="knob-container">
+                <div class="knob-label">TIDE</div>
+                <svg class="knob-svg" id="tide" data-val="0" data-default="0" viewBox="0 0 44 44" title="Crossover Wave Oscillation">
+                  <g class="knob-ticks">
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                  </g>
+                  <circle class="knob-bezel" cx="22" cy="22" r="15.5"></circle>
+                  <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                  <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                </svg>
+                <div class="knob-readout" id="val-tide">0.00</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- COLUMN III: THE DEEP -->
+          <div class="column col-dee" data-col="dee">
+            <div class="col-header" id="hdr-dee">III. THE DEEP</div>
+
+            <div class="knob-row">
+              <div class="knob-container">
+                <div class="knob-label">ALEMBIC</div>
+                <svg class="knob-svg" id="alembic" data-val="0.5" data-default="0.5" viewBox="0 0 44 44" title="4-Comb Tank Decay">
+                  <g class="knob-ticks">
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                  </g>
+                  <circle class="knob-bezel" cx="22" cy="22" r="15.5"></circle>
+                  <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                  <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                </svg>
+                <div class="knob-readout" id="val-alembic">0.50</div>
+              </div>
+
+              <div class="knob-container">
+                <div class="knob-label">TRANSMUTE</div>
+                <svg class="knob-svg" id="transmute" data-val="0" data-default="0" viewBox="0 0 44 44" title="Multi-Tap Cascade Blend">
+                  <g class="knob-ticks">
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                  </g>
+                  <circle class="knob-bezel" cx="22" cy="22" r="15.5"></circle>
+                  <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                  <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                </svg>
+                <div class="knob-readout" id="val-transmute">0.00</div>
+              </div>
+            </div>
+
+            <div class="knob-row">
+              <div class="knob-container">
+                <div class="knob-label">SWAY</div>
+                <svg class="knob-svg" id="sway" data-val="0" data-default="0" viewBox="0 0 44 44" title="Comb Pitch Drift &amp; Turbulence">
+                  <g class="knob-ticks">
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                  </g>
+                  <circle class="knob-bezel" cx="22" cy="22" r="15.5"></circle>
+                  <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                  <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                </svg>
+                <div class="knob-readout" id="val-sway">0.00</div>
+              </div>
+
+              <div class="knob-container">
+                <div class="knob-label">DISTILL</div>
+                <svg class="knob-svg" id="distill" data-val="0" data-default="0" viewBox="0 0 44 44" title="RMS Compression &amp; Saturation">
+                  <g class="knob-ticks">
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                  </g>
+                  <circle class="knob-bezel" cx="22" cy="22" r="15.5"></circle>
+                  <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                  <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                </svg>
+                <div class="knob-readout" id="val-distill">0.00</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- COLUMN IV: MACROS -->
+          <div class="column col-mac" data-col="mac">
+            <div class="col-header" id="hdr-mac">IV. MACROS</div>
+
+            <div class="knob-row">
+              <div class="knob-container">
+                <div class="knob-label">OUROBOROS</div>
+                <svg class="knob-svg" id="ouroboros" data-val="0" data-default="0" viewBox="0 0 44 44" title="Tank-to-Input Feedback Loop">
+                  <g class="knob-ticks">
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                  </g>
+                  <circle class="knob-bezel" cx="22" cy="22" r="15.5"></circle>
+                  <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                  <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                </svg>
+                <div class="knob-readout" id="val-ouroboros">0.00</div>
+              </div>
+            </div>
+
+            <div class="knob-row">
+              <div class="knob-container">
+                <div class="knob-label">ENTROPY</div>
+                <svg class="knob-svg" id="entropy" data-val="0" data-default="0" viewBox="0 0 44 44" title="Organic Tape Drift &amp; Spectral Weathering">
+                  <g class="knob-ticks">
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                  </g>
+                  <circle class="knob-bezel" cx="22" cy="22" r="15.5"></circle>
+                  <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                  <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                </svg>
+                <div class="knob-readout" id="val-entropy">0.00</div>
+              </div>
+
+              <div class="knob-container">
+                <div class="knob-label">VEIL</div>
+                <svg class="knob-svg" id="veil" data-val="0.5" data-default="0.5" viewBox="0 0 44 44" title="Dry Live / Wet &amp; Captured Equal-Power Blend">
+                  <g class="knob-ticks">
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-135,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(-45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(0,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(45,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(90,22,22)"/>
+                    <line x1="22" y1="1.5" x2="22" y2="4.5" transform="rotate(135,22,22)"/>
+                  </g>
+                  <circle class="knob-bezel" cx="22" cy="22" r="15.5"></circle>
+                  <circle class="knob-cap" cx="22" cy="22" r="11.5"></circle>
+                  <line class="knob-indicator" x1="22" y1="22" x2="22" y2="7.5"></line>
+                </svg>
+                <div class="knob-readout" id="val-veil">0.50</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="vertical-text">WEATHERING ENGINE</div>
+      </div>
+
+      <!-- UTILITY STRIP: SCATTER, DRIFT, A/B MORPH & PRESET CYCLER -->
+      <div class="utility-strip">
+        <div class="util-group">
+          <button class="oled-btn" id="btn-scatter" title="Randomize Dials [S]">SCATTER</button>
+          <button class="oled-btn" id="btn-drift" title="Organic Parameter Drift">DRIFT</button>
+        </div>
+
+        <div class="util-group">
+          <button class="oled-btn" id="btn-a" title="Capture State A">A</button>
+          <div class="ascii-scrub" id="ab-scrub" title="Drag to Crossfade A / B">[■░░░░░░░]</div>
+          <button class="oled-btn" id="btn-b" title="Capture State B">B</button>
+        </div>
+
+        <div class="util-group" style="flex:1; min-width:140px;">
+          <button class="oled-btn" id="btn-dump" title="Store Current Preset">DUMP</button>
+          <div class="cycle-box" style="flex:1;" title="Cycle Stored Presets">
+            <button type="button" class="cycle-step" id="btn-preset-prev">&lt;</button>
+            <div class="cycle-label" id="preset-label">INITIALIZED</div>
+            <button type="button" class="cycle-step" id="btn-preset-next">&gt;</button>
+          </div>
+        </div>
+
+        <button class="oled-btn" id="btn-expand-viz" title="Expand Weathering Tank to Full-Frame Backdrop [V]">[V] EXPAND</button>
+      </div>
+
+      <!-- WEATHERING MATRIX SEQUENCER + GEOMETRIC AMBER WEATHERING STRIP -->
+      <div id="matrix-deck">
+        <div class="matrix-header">
+          <span class="matrix-title">WEATHERING MATRIX</span>
+
+          <div class="matrix-controls">
+            <button type="button" class="m-btn active-green" id="m-lane-0" data-lane="0" title="Lane I: Amber I Upper Cloud + Spawned Rhythmic Blooms">I. AMB I</button>
+            <button type="button" class="m-btn" id="m-lane-1" data-lane="1" title="Lane II: Amber II Half-Speed Sub Cloud + Spawned Sub-Pulses">II. AMB II</button>
+            <button type="button" class="m-btn" id="m-lane-2" data-lane="2" title="Lane III: Undertow Reverse Cloud Bloom">III. UNDR</button>
+            <button type="button" class="m-btn" id="m-lane-3" data-lane="3" title="Lane IV: Thicket &amp; Tide Harmonic Pocket Carve">IV. FLTR</button>
+          </div>
+
+          <div class="matrix-controls">
+            <button type="button" class="m-btn" id="btn-seq-toggle" title="Start / Stop Sequencer [Space]">SEQ: OFF</button>
+            <button type="button" class="m-btn" id="btn-seq-mod" title="Edit Mode: Click Steps or Roll Lane Dice for Red Modulation">MOD</button>
+            <button type="button" class="m-btn" id="btn-seq-hold" title="Edit Mode: Click Steps to Place Held (=) Gates">HOLD</button>
+            <div class="m-btn" id="btn-seq-len" title="Drag Horizontally to Resize Selected Lane (1 - 64 Steps)" style="cursor:ew-resize; touch-action:none;">LEN: 16</div>
+            <button type="button" class="m-btn" id="btn-seq-page" title="Cycle 16-Step Page View">PG: 1/1</button>
+            <button type="button" class="m-btn" id="btn-seq-clr" title="Clear Selected Lane Steps">CLR</button>
+          </div>
+
+          <!-- 4 Mini Rotary Encoders (PACE, SUS, GROW, DRAG) -->
+          <div class="mini-knobs-group">
+            <div class="mini-knob-item" id="mk-pace" data-val="0.50" style="color:var(--c-amber);" title="Logarithmic Master Tempo (20 - 180 BPM)">
+              <span>PACE</span>
+              <svg class="mini-knob-svg" viewBox="0 0 26 26">
+                <circle cx="13" cy="13" r="10" fill="#090c0a" stroke="#a67a3c" stroke-width="1.6"/>
+                <line class="mk-ind" x1="13" y1="13" x2="13" y2="5" stroke="#e6e3da" stroke-width="1.6"/>
+              </svg>
+            </div>
+            <div class="mini-knob-item" id="mk-sus" data-val="0.50" style="color:var(--c-cyan);" title="Tempo-Proportional Envelope Contour: Chop to Liquid Swell (SUS)">
+              <span>SUS</span>
+              <svg class="mini-knob-svg" viewBox="0 0 26 26">
+                <circle cx="13" cy="13" r="10" fill="#090c0a" stroke="#487e9e" stroke-width="1.6"/>
+                <line class="mk-ind" x1="13" y1="13" x2="13" y2="5" stroke="#e6e3da" stroke-width="1.6"/>
+              </svg>
+            </div>
+            <div class="mini-knob-item" id="mk-grow" data-val="0.00" style="color:var(--c-green);" title="Stochastic Step Evolution (GROW)">
+              <span>GROW</span>
+              <svg class="mini-knob-svg" viewBox="0 0 26 26">
+                <circle cx="13" cy="13" r="10" fill="#090c0a" stroke="#4e8f60" stroke-width="1.6"/>
+                <line class="mk-ind" x1="13" y1="13" x2="13" y2="5" stroke="#e6e3da" stroke-width="1.6"/>
+              </svg>
+            </div>
+            <div class="mini-knob-item" id="mk-drag" data-val="0.00" style="color:var(--c-red-dim);" title="Micro-Timing Swing / Drag (DRAG)">
+              <span>DRAG</span>
+              <svg class="mini-knob-svg" viewBox="0 0 26 26">
+                <circle cx="13" cy="13" r="10" fill="#090c0a" stroke="#9e4b4b" stroke-width="1.6"/>
+                <line class="mk-ind" x1="13" y1="13" x2="13" y2="5" stroke="#e6e3da" stroke-width="1.6"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4-LANE DOTTED POLYMETRIC GRID + SYMBOLOGY KEY + WEATHERING STRIP -->
+        <div class="matrix-grid-box">
+          <div id="matrix-lanes"></div>
+          <div class="symbology-bar">
+            <span>SYMBOLOGY: · REST &nbsp;|&nbsp; | SINGLE &nbsp;|&nbsp; = HELD &nbsp;|&nbsp; <span class="sym-red">RED: MODULATED</span></span>
+            <span id="edit-mode-readout">EDIT: SINGLE STEP (|)</span>
+          </div>
+          <canvas id="tank-canvas" width="900" height="92" title="Real-Time Geometric Amber Weathering Strip"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ===========================================================================
+     01. AUDIO WORKLET DSP ENGINE (LOCKED GOLD CORE + CLOUD & SPAWNED AMBERS)
+     =========================================================================== */
+  const workletString = `
+  class SafeDelay {
+    constructor(size) {
+      this.size = size;
+      this.buf = new Float32Array(size);
+      this.writeIdx = 0;
+    }
+    write(val) {
+      if (Number.isNaN(val)) val = 0;
+      this.buf[this.writeIdx] = val;
+      this.writeIdx = (this.writeIdx + 1) % this.size;
+    }
+    read(sAgo) {
+      if (Number.isNaN(sAgo)) sAgo = 0;
+      sAgo = Math.max(0, Math.min(sAgo, this.size - 2));
+      let rPos = this.writeIdx - sAgo;
+      while (rPos < 0) rPos += this.size;
+      const i1 = Math.floor(rPos);
+      const i2 = (i1 + 1) % this.size;
+      const frac = rPos - i1;
+      const val = this.buf[i1] + frac * (this.buf[i2] - this.buf[i1]);
+      return Number.isNaN(val) ? 0 : val;
+    }
+  }
+
+  class SafeAllpass {
+    constructor(size, gain = 0.64) {
+      this.size = size;
+      this.gain = gain;
+      this.buf = new Float32Array(size);
+      this.idx = 0;
+    }
+    process(input) {
+      if (Number.isNaN(input)) input = 0;
+      const delayed = this.buf[this.idx];
+      let v = input + delayed * this.gain;
+      if (Number.isNaN(v)) v = 0;
+      v = Math.max(-2.5, Math.min(2.5, v));
+      const out = delayed - v * this.gain;
+      this.buf[this.idx] = v;
+      this.idx = (this.idx + 1) % this.size;
+      return Number.isNaN(out) ? 0 : out;
+    }
+  }
+
+  class AsperitasProcessor extends AudioWorkletProcessor {
+    constructor() {
+      super();
+      this.p = {
+        sublimate: 0, alembic: 0.5, thicket: 0, veil: 0.5,
+        rhizome: 0, tide: 0, sway: 0, amber: 0, amber2: 0,
+        transmute: 0, distill: 0, ouroboros: 0, entropy: 0, undertow: 0,
+        input_mon: 1.0, tempo_mult: 1.0,
+        step_dur_sec: 0.25, seq_sus: 0.50,
+        seq_amb1_active: 0.0, seq_amb1_mod: 0.0,
+        seq_amb2_active: 0.0, seq_amb2_mod: 0.0,
+        seq_undertow_add: 0.0,
+        seq_filter_mod: 0.0
+      };
+
+      // Per-step rhythmic AR envelope state for spawned Amber I & II layers
+      this.env1 = 0.0;
+      this.env2 = 0.0;
+      this.gate1Count = 0;
+      this.gate2Count = 0;
+      this.env1Peak = 0.0;
+      this.env2Peak = 0.0;
+
+      this.port.onmessage = (e) => {
+        const d = e.data;
+        if (!d) return;
+        if (d.type === 'step') {
+          const stepSamples = Math.max(1000, this.p.step_dur_sec * sampleRate);
+          const sus = Math.max(0, Math.min(1, this.p.seq_sus));
+          const singleGate = Math.floor(stepSamples * (0.16 + sus * 0.72));
+          const holdGate   = Math.floor(stepSamples * 1.18);
+
+          if (d.lane === 0) {
+            this.p.seq_amb1_active = d.active ? 1.0 : 0.0;
+            this.p.seq_amb1_mod = d.modVal || 0.0;
+            if (d.stepType === 1) {
+              // Crisp re-articulation on consecutive single (|) steps
+              this.env1 *= 0.22;
+              this.gate1Count = singleGate;
+              this.env1Peak = 0.88 + (d.modVal || 0) * 0.35;
+            } else if (d.stepType === 2) {
+              // Seamless tie on held (=) steps
+              this.gate1Count = holdGate;
+              this.env1Peak = 1.0 + (d.modVal || 0) * 0.30;
+            } else {
+              this.gate1Count = 0;
+            }
+          } else if (d.lane === 1) {
+            this.p.seq_amb2_active = d.active ? 1.0 : 0.0;
+            this.p.seq_amb2_mod = d.modVal || 0.0;
+            if (d.stepType === 1) {
+              this.env2 *= 0.22;
+              this.gate2Count = singleGate;
+              this.env2Peak = 0.90 + (d.modVal || 0) * 0.38;
+            } else if (d.stepType === 2) {
+              this.gate2Count = holdGate;
+              this.env2Peak = 1.0 + (d.modVal || 0) * 0.32;
+            } else {
+              this.gate2Count = 0;
+            }
+          }
+          return;
+        }
+        if (d.type === 'reset_seq') {
+          this.p.seq_amb1_active = 0.0;
+          this.p.seq_amb2_active = 0.0;
+          this.p.seq_amb1_mod = 0.0;
+          this.p.seq_amb2_mod = 0.0;
+          this.p.seq_undertow_add = 0.0;
+          this.p.seq_filter_mod = 0.0;
+          this.gate1Count = 0;
+          this.gate2Count = 0;
+          return;
+        }
+        if (d.id && this.p[d.id] !== undefined) {
+          this.p[d.id] = d.value;
+        }
+      };
+
+      this.c1_fb = 0; this.c2_fb = 0; this.c3_fb = 0; this.c4_fb = 0;
+      this.lpf_y = 0; this.tide_lpf = 0;
+      this.rhz_lpf1 = 0; this.rhz_lpf2 = 0; this.rhz_lpf3 = 0; this.rhz_lpf4 = 0;
+      this.amb_lpf1 = 0; this.amb_lpf2 = 0;
+      this.amb1_spawn_hp = 0;
+      this.amb2_sub_lpf = 0;
+      this.global_tank = 0; this.ouro_hp_y = 0; this.ouro_lp_y = 0;
+      this.dc_x = 0; this.dc_y = 0;
+
+      this.cascade = new SafeDelay(88200);
+      this.c1_delay = new SafeDelay(44100);
+      this.c2_delay = new SafeDelay(44100);
+      this.c3_delay = new SafeDelay(44100);
+      this.c4_delay = new SafeDelay(44100);
+      this.out_spread = new SafeDelay(4410);
+      this.amber_freeze = new SafeDelay(88200);
+      this.amber2_freeze = new SafeDelay(176400);
+
+      // Dedicated 3-stage prime all-pass cloud diffusers for AMBER I & AMBER II
+      this.ap1a = new SafeAllpass(557, 0.64);
+      this.ap1b = new SafeAllpass(1181, 0.62);
+      this.ap1c = new SafeAllpass(1973, 0.60);
+
+      this.ap2a = new SafeAllpass(769, 0.68);
+      this.ap2b = new SafeAllpass(1543, 0.66);
+      this.ap2c = new SafeAllpass(2711, 0.64);
+
+      this.sm_transmute = 0;
+      this.sm_sway = 0;
+      this.sm_entropy = 0;
+      this.sm_mon = 1.0;
+      this.sm_amber = 0;
+      this.sm_amber2 = 0;
+
+      this.sm_seq_amb1_act = 0.0;
+      this.sm_seq_amb2_act = 0.0;
+      this.sm_seq_amb1_mod = 0.0;
+      this.sm_seq_amb2_mod = 0.0;
+      this.sm_seq_undertow = 0.0;
+      this.sm_seq_filter = 0.0;
+
+      this.ghost_phase = 0;
+      this.ph1 = 0;
+      this.ph2_fwd = 0;
+      this.ph2_rev = 0;
+      this.ph_c1 = 0; this.ph_c2 = 0; this.ph_c3 = 0; this.ph_c4 = 0;
+      this.ph_tide = 0;
+      this.swell_env = 0;
+      this.wet_rms_prev = 0;
+      this.mod_tank_inject = 0;
+      this.TWOPI = Math.PI * 2;
+    }
+
+    slide(t, u, d, c) {
+      if (Number.isNaN(c)) c = 0;
+      const diff = t - c;
+      return diff > 0 ? c + diff / Math.max(1, u) : c + diff / Math.max(1, d);
+    }
+
+    wrap(v, min, max) {
+      const r = max - min;
+      if (r === 0) return min;
+      let res = (v - min) % r;
+      if (res < 0) res += r;
+      return res + min;
+    }
+
+    scale(v, inMin, inMax, outMin, outMax) {
+      return outMin + ((v - inMin) / (inMax - inMin)) * (outMax - outMin);
+    }
+
+    process(ins, outs) {
+      const input = ins[0][0];
+      const outL = outs[0][0];
+      const outR = outs[0][1];
+      if (!outL || !outR) return true;
+      const sr = sampleRate;
+
+      const stepSec = Math.max(0.06, this.p.step_dur_sec);
+      const sus = Math.max(0, Math.min(1, this.p.seq_sus));
+
+      // Tempo-proportional AR envelope coefficients: 4ms crisp chop -> overlapping liquid swells
+      const attSec = 0.004 + Math.pow(sus, 2.0) * stepSec * 0.45;
+      const relSec = 0.018 + Math.pow(sus, 1.5) * stepSec * 1.45;
+      const attCoeff = 1.0 - Math.exp(-1.0 / Math.max(44, attSec * sr));
+      const relCoeff = 1.0 - Math.exp(-1.0 / Math.max(180, relSec * sr));
+
+      const modSlewUp = Math.max(220.0, attSec * sr * 1.2);
+      const modSlewDn = Math.max(320.0, relSec * sr * 0.8);
+
+      for (let i = 0; i < outL.length; i++) {
+        let raw_in = input ? input[i] : 0;
+        if (Number.isNaN(raw_in)) raw_in = 0;
+
+        this.sm_mon = this.slide(this.p.input_mon, 441.0, 441.0, this.sm_mon);
+        const in1 = raw_in * this.sm_mon;
+
+        // Step-articulated envelopes for spawned Amber I & II layers
+        const tgt1 = this.gate1Count > 0 ? this.env1Peak : 0.0;
+        if (this.gate1Count > 0) this.gate1Count--;
+        this.env1 += (tgt1 - this.env1) * (tgt1 > this.env1 ? attCoeff : relCoeff);
+
+        const tgt2 = this.gate2Count > 0 ? this.env2Peak : 0.0;
+        if (this.gate2Count > 0) this.gate2Count--;
+        this.env2 += (tgt2 - this.env2) * (tgt2 > this.env2 ? attCoeff : relCoeff);
+
+        const sublimate = this.p.sublimate * 100.0;
+        const alembic   = this.p.alembic * 100.0;
+        const thicket   = this.p.thicket * 100.0;
+        const veil      = this.p.veil * 100.0;
+        const rhizome   = this.p.rhizome * 100.0;
+        const tide      = this.p.tide * 100.0;
+        const sway      = this.p.sway * 100.0;
+        const transmute = this.p.transmute * 100.0;
+        const distill   = this.p.distill * 100.0;
+        const ouroboros = this.p.ouroboros * 100.0;
+        const entropy   = this.p.entropy * 100.0;
+        const undertow  = this.p.undertow * 100.0;
+        const tempoMult = Math.max(0.15, Math.min(3.0, this.p.tempo_mult));
+
+        this.sm_transmute = this.slide(transmute / 100.0, 22050.0, 22050.0, this.sm_transmute);
+        this.sm_sway      = this.slide(sway / 100.0, 22050.0, 22050.0, this.sm_sway);
+        this.sm_entropy   = this.slide(entropy / 100.0, 22050.0, 22050.0, this.sm_entropy);
+        this.sm_amber     = this.slide(this.p.amber / 100.0, 1102.0, 1102.0, this.sm_amber);
+        this.sm_amber2    = this.slide(this.p.amber2 / 100.0, 1102.0, 1102.0, this.sm_amber2);
+
+        this.sm_seq_amb1_act = this.slide(this.p.seq_amb1_active, 2205.0, 2205.0, this.sm_seq_amb1_act);
+        this.sm_seq_amb2_act = this.slide(this.p.seq_amb2_active, 2205.0, 2205.0, this.sm_seq_amb2_act);
+        this.sm_seq_amb1_mod = this.slide(this.p.seq_amb1_mod, modSlewUp, modSlewDn, this.sm_seq_amb1_mod);
+        this.sm_seq_amb2_mod = this.slide(this.p.seq_amb2_mod, modSlewUp, modSlewDn, this.sm_seq_amb2_mod);
+        this.sm_seq_undertow = this.slide(this.p.seq_undertow_add, modSlewUp, modSlewDn, this.sm_seq_undertow);
+        this.sm_seq_filter   = this.slide(this.p.seq_filter_mod, modSlewUp, modSlewDn, this.sm_seq_filter);
+
+        const ent2 = this.sm_entropy * this.sm_entropy;
+        this.ghost_phase = (this.ghost_phase + ((0.08 + this.sm_entropy * 0.55) * tempoMult) / sr) % 1.0;
+        const bipolar_ghost = Math.sin(this.ghost_phase * this.TWOPI);
+        const uni_ghost = (bipolar_ghost * 0.5 + 0.5) * ent2;
+        const ghost_mod = bipolar_ghost * ent2 * 0.5;
+        const tape_warble = bipolar_ghost * ent2 * 180.0;
+
+        const mod_energy = Math.min(1.0, (this.sm_seq_amb1_mod * this.env1 + this.sm_seq_amb2_mod * this.env2) * 0.5);
+
+        const n_alembic   = Math.pow(alembic / 100.0, 2.0);
+        const n_thicket   = Math.pow(thicket / 100.0, 2.0);
+        const n_rhizome   = Math.pow(rhizome / 100.0, 2.0);
+        const n_distill   = distill / 100.0;
+        const n_veil      = veil / 100.0;
+        const n_sublimate = Math.pow(sublimate / 100.0, 2.0);
+        const n_tide      = tide / 100.0;
+        const n_ouro      = Math.pow(ouroboros / 100.0, 2.0);
+        const n_undertow  = Math.max(0.0, Math.min(1.0, (undertow / 100.0) + this.sm_seq_undertow));
+
+        const play_gate = Math.abs(in1) > 0.005 ? 1 : 0;
+        const swell_attack = 1.0 + (n_sublimate * 52920.0);
+        this.swell_env = this.slide(play_gate, swell_attack, 4410.0, this.swell_env);
+        const swelled_in = in1 * (1.0 - n_sublimate) + (in1 * this.swell_env * (1.0 + (n_sublimate * 2.0))) * n_sublimate;
+
+        const ouro_hp_alpha = Math.max(0.001, Math.min(1.0, (250.0 / sr) * this.TWOPI));
+        this.ouro_hp_y = this.ouro_hp_y * (1.0 - ouro_hp_alpha) + this.global_tank * ouro_hp_alpha;
+        const ouro_clean = this.global_tank - this.ouro_hp_y;
+        const ouro_lp_alpha = Math.max(0.001, Math.min(1.0, (3000.0 / sr) * this.TWOPI));
+        this.ouro_lp_y = this.ouro_lp_y * (1.0 - ouro_lp_alpha) + ouro_clean * ouro_lp_alpha;
+        const weather_in = swelled_in + Math.tanh(this.ouro_lp_y * n_ouro * 0.40) + this.mod_tank_inject;
+
+        const t1_samp = this.scale(this.sm_transmute, 0.0, 1.0, 8820.0, 30870.0) + tape_warble;
+        const t2_samp = this.scale(this.sm_transmute, 0.0, 1.0, 17640.0, 52920.0) - (tape_warble * 0.65);
+        const t3_samp = this.scale(this.sm_transmute, 0.0, 1.0, 26460.0, 80000.0) + (tape_warble * 0.40);
+
+        this.cascade.write(weather_in);
+        const tap1 = this.cascade.read(t1_samp);
+        const tap2 = this.cascade.read(t2_samp);
+        const tap3 = this.cascade.read(t3_samp);
+        const w1 = 1.0 + ghost_mod * 0.65;
+        const w2 = 1.0 - ghost_mod * 0.45;
+        const w3 = 1.0 + (uni_ghost - 0.5 * ent2) * 0.70;
+        const cascade_sig = (tap1 * w1 + tap2 * w2 + tap3 * w3) * 0.5;
+
+        const tank_input = weather_in * (1.0 - this.sm_transmute) + cascade_sig * this.sm_transmute;
+
+        const fb_base = this.scale(n_alembic, 0.0, 1.0, 0.0, 0.975);
+        const fb_total = fb_base + (n_rhizome * 0.04);
+        const drive = 1.0 + ((n_rhizome + mod_energy * 0.25) * 9.0);
+        const mod_depth = (this.sm_sway * 960.0) + (uni_ghost * 320.0) + (mod_energy * 180.0);
+
+        this.ph_c1 = (this.ph_c1 + 0.10 / sr) % 1.0;
+        this.ph_c2 = (this.ph_c2 + 0.13 / sr) % 1.0;
+        this.ph_c3 = (this.ph_c3 + 0.09 / sr) % 1.0;
+        this.ph_c4 = (this.ph_c4 + 0.11 / sr) % 1.0;
+
+        const c1 = this.c1_delay.read(2205 + Math.sin(this.ph_c1 * this.TWOPI) * mod_depth);
+        const c2 = this.c2_delay.read(2750 + Math.sin(this.ph_c2 * this.TWOPI) * mod_depth);
+        const c3 = this.c3_delay.read(3120 + Math.sin(this.ph_c3 * this.TWOPI) * mod_depth);
+        const c4 = this.c4_delay.read(3500 + Math.sin(this.ph_c4 * this.TWOPI) * mod_depth);
+
+        const rhz_cutoff = this.scale(Math.min(1.0, n_rhizome + uni_ghost * 0.25), 0.0, 1.0, 18000.0, 4000.0);
+        const rhz_alpha = Math.max(0.001, Math.min(1.0, (rhz_cutoff / sr) * this.TWOPI));
+
+        this.rhz_lpf1 = this.rhz_lpf1 * (1.0 - rhz_alpha) + c1 * rhz_alpha;
+        this.rhz_lpf2 = this.rhz_lpf2 * (1.0 - rhz_alpha) + c2 * rhz_alpha;
+        this.rhz_lpf3 = this.rhz_lpf3 * (1.0 - rhz_alpha) + c3 * rhz_alpha;
+        this.rhz_lpf4 = this.rhz_lpf4 * (1.0 - rhz_alpha) + c4 * rhz_alpha;
+
+        this.c1_fb = Math.tanh(this.rhz_lpf1 * fb_total * drive) / drive;
+        this.c2_fb = Math.tanh(this.rhz_lpf2 * fb_total * drive) / drive;
+        this.c3_fb = Math.tanh(this.rhz_lpf3 * fb_total * drive) / drive;
+        this.c4_fb = Math.tanh(this.rhz_lpf4 * fb_total * drive) / drive;
+
+        this.c1_delay.write(tank_input + this.c1_fb);
+        this.c2_delay.write(tank_input + this.c2_fb);
+        this.c3_delay.write(tank_input + this.c3_fb);
+        this.c4_delay.write(tank_input + this.c4_fb);
+
+        const raw_tank = (c1 + c2 + c3 + c4) * 0.25;
+        const dc_out = raw_tank - this.dc_x + 0.995 * this.dc_y;
+        this.dc_x = raw_tank;
+        this.dc_y = dc_out;
+        this.global_tank = Number.isNaN(dc_out) ? 0 : dc_out;
+
+        const eff_thicket = Math.max(0.0, Math.min(1.0, n_thicket + (ghost_mod * 0.45) + (this.sm_seq_filter * 0.72)));
+        const cutoff_hz = this.scale(eff_thicket, 0.0, 1.0, 18000.0, 380.0);
+        const alpha = Math.max(0.001, Math.min(1.0, (cutoff_hz / sr) * this.TWOPI));
+        const filtered_wet = this.lpf_y * (1.0 - alpha) + this.global_tank * alpha;
+        this.lpf_y = Number.isNaN(filtered_wet) ? 0 : filtered_wet;
+
+        // =====================================================================
+        // AMBER I (2S SUSPENDED UPPER CLOUD) & AMBER II (4S HALF-SPEED SUB BED)
+        // Continuous diffused cloud voices + articulated spawned groove layers
+        // =====================================================================
+        const amb_deg_alpha1 = Math.max(0.001, Math.min(1.0, (this.scale(Math.min(1.0, n_rhizome + this.sm_seq_amb1_mod * 0.50), 0.0, 1.0, 18000.0, 950.0) / sr) * this.TWOPI));
+        const amb_deg_alpha2 = Math.max(0.001, Math.min(1.0, (this.scale(Math.min(1.0, n_rhizome + this.sm_seq_amb2_mod * 0.60), 0.0, 1.0, 18000.0, 850.0) / sr) * this.TWOPI));
+
+        const fwd_amt = Math.cos(n_undertow * Math.PI * 0.5);
+        const rev_amt = Math.sin(n_undertow * Math.PI * 0.5);
+
+        // --- AMBER I: 2.0s Recirculation + Seamless Diffused Unity Cloud ---
+        const freeze_sig = this.amber_freeze.read(88196);
+        this.amb_lpf1 = this.amb_lpf1 * (1.0 - amb_deg_alpha1) + freeze_sig * amb_deg_alpha1;
+        const freeze_in = filtered_wet * (1.0 - this.sm_amber) + this.amb_lpf1 * this.sm_amber;
+        this.amber_freeze.write(freeze_in);
+
+        const amb1_stagger = this.amber_freeze.read(44098);
+        const amb1_fwd_raw = (this.amb_lpf1 * 0.65) + (amb1_stagger * 0.55);
+
+        this.ph1 = (this.ph1 + (2.0 / 88190.0)) % 1.0;
+        const rev_ph1 = this.ph1;
+        const rev_ph2 = this.wrap(rev_ph1 + 0.5, 0.0, 1.0);
+        const rev_w1 = 0.5 * (1.0 - Math.cos(rev_ph1 * this.TWOPI));
+        const rev_w2 = 0.5 * (1.0 - Math.cos(rev_ph2 * this.TWOPI));
+        const rev1_sig = (this.amber_freeze.read(rev_ph1 * 88190.0) * rev_w1) +
+                         (this.amber_freeze.read(rev_ph2 * 88190.0) * rev_w2);
+
+        const amb1_core = (amb1_fwd_raw * fwd_amt) + (rev1_sig * rev_amt);
+        const amb1_cloud = this.ap1c.process(this.ap1b.process(this.ap1a.process(amb1_core)));
+
+        // Sculpted high-mid sheen on spawned Lane I pulses so rhythm cuts cleanly over the cloud halo
+        const hp1_alpha = Math.max(0.001, Math.min(1.0, (520.0 / sr) * this.TWOPI));
+        this.amb1_spawn_hp = this.amb1_spawn_hp * (1.0 - hp1_alpha) + amb1_core * hp1_alpha;
+        const amb1_crisp = (amb1_core * 0.55) + ((amb1_core - this.amb1_spawn_hp) * (0.75 + this.sm_seq_amb1_mod * 0.85));
+
+        const amb1_bed = amb1_cloud * (1.0 - this.sm_seq_amb1_act * 0.42);
+        const amb1_pulse_drive = 1.15 + this.sm_seq_amb1_mod * 2.4;
+        const amb1_spawned = Math.tanh(amb1_crisp * amb1_pulse_drive) * this.env1 * this.sm_seq_amb1_act * 0.92;
+        const amb1_final = amb1_bed + amb1_spawned;
+
+        // --- AMBER II: 4.0s Recirculation + 0.5x Half-Speed Octave-Down Dark Cloud ---
+        const freeze2_sig = this.amber2_freeze.read(176396);
+        this.amb_lpf2 = this.amb_lpf2 * (1.0 - amb_deg_alpha2) + freeze2_sig * amb_deg_alpha2;
+        const freeze2_in = filtered_wet * (1.0 - this.sm_amber2) + this.amb_lpf2 * this.sm_amber2;
+        this.amber2_freeze.write(freeze2_in);
+
+        // +0.5x forward (octave down) & -0.5x reverse (octave down reverse)
+        this.ph2_fwd = (this.ph2_fwd + (0.5 / 176380.0)) % 1.0;
+        const fp1 = this.ph2_fwd;
+        const fp2 = this.wrap(fp1 + 0.5, 0.0, 1.0);
+        const fw1 = 0.5 * (1.0 - Math.cos(fp1 * this.TWOPI));
+        const fw2 = 0.5 * (1.0 - Math.cos(fp2 * this.TWOPI));
+        const sub2_fwd = (this.amber2_freeze.read(fp1 * 176380.0) * fw1) +
+                         (this.amber2_freeze.read(fp2 * 176380.0) * fw2);
+
+        this.ph2_rev = (this.ph2_rev + (1.5 / 176380.0)) % 1.0;
+        const rp1 = this.ph2_rev;
+        const rp2 = this.wrap(rp1 + 0.5, 0.0, 1.0);
+        const rw1 = 0.5 * (1.0 - Math.cos(rp1 * this.TWOPI));
+        const rw2 = 0.5 * (1.0 - Math.cos(rp2 * this.TWOPI));
+        const sub2_rev = (this.amber2_freeze.read(rp1 * 176380.0) * rw1) +
+                         (this.amber2_freeze.read(rp2 * 176380.0) * rw2);
+
+        const amb2_raw = (sub2_fwd * fwd_amt) + (sub2_rev * rev_amt);
+        const sub_cut = this.scale(Math.min(1.0, Math.max(0.0, n_rhizome * 0.65 - this.sm_seq_amb2_mod * 0.35)), 0.0, 1.0, 2600.0, 520.0);
+        const sub_alpha = Math.max(0.001, Math.min(1.0, (sub_cut / sr) * this.TWOPI));
+        this.amb2_sub_lpf = this.amb2_sub_lpf * (1.0 - sub_alpha) + amb2_raw * sub_alpha;
+
+        const amb2_cloud = this.ap2c.process(this.ap2b.process(this.ap2a.process(this.amb2_sub_lpf)));
+
+        const amb2_bed = amb2_cloud * (1.0 - this.sm_seq_amb2_act * 0.42);
+        const amb2_pulse_drive = 1.25 + this.sm_seq_amb2_mod * 2.8;
+        const amb2_spawned = Math.tanh(this.amb2_sub_lpf * amb2_pulse_drive) * this.env2 * this.sm_seq_amb2_act * 0.96;
+        const amb2_final = amb2_bed + amb2_spawned;
+
+        // Red MOD steps re-excite the comb tank for living internal engine resonance
+        this.mod_tank_inject = Math.tanh(
+          (amb1_spawned * this.sm_seq_amb1_mod * this.sm_amber +
+           amb2_spawned * this.sm_seq_amb2_mod * this.sm_amber2) * 0.24
+        );
+
+        const parallel_wet = Math.tanh(filtered_wet + (amb1_final * this.sm_amber) + (amb2_final * this.sm_amber2));
+
+        const tide_alpha = Math.max(0.001, Math.min(1.0, (400.0 / sr) * this.TWOPI));
+        this.tide_lpf = this.tide_lpf * (1.0 - tide_alpha) + parallel_wet * tide_alpha;
+        const tide_low = this.tide_lpf;
+        const tide_high = parallel_wet - tide_low;
+
+        const eff_tide = Math.max(0.0, Math.min(1.0, n_tide + this.sm_seq_filter * 0.45));
+        this.ph_tide = (this.ph_tide + ((0.05 + (eff_tide * 0.25)) * tempoMult) / sr) % 1.0;
+        const tide_lfo = Math.sin(this.ph_tide * this.TWOPI);
+        const pulse_low = (tide_lfo * 0.5) + 0.5;
+        const pulse_high = 1.0 - pulse_low;
+        const tided_wet = parallel_wet * (1.0 - eff_tide) + ((tide_low * pulse_low) + (tide_high * pulse_high)) * eff_tide;
+
+        const wet_rms = this.slide(Math.abs(tided_wet), 4410.0, 4410.0, this.wet_rms_prev);
+        this.wet_rms_prev = wet_rms;
+        const distill_thresh = 0.5 - (n_distill * 0.48);
+        const gain_reduction = Math.max(0.08, Math.min(1.0, distill_thresh / (wet_rms + 0.001)));
+        const compressed_wet = tided_wet * (1.0 * (1.0 - n_distill) + (gain_reduction * 3.0) * n_distill);
+        const distilled_wet = Math.tanh(compressed_wet);
+
+        const dry_level = Math.cos(n_veil * Math.PI * 0.5);
+        const wet_level = Math.sin(n_veil * Math.PI * 0.5);
+
+        this.out_spread.write(Number.isNaN(distilled_wet) ? 0 : distilled_wet);
+        const wet_out = Number.isNaN(distilled_wet) ? 0 : distilled_wet;
+        const spread_out = Number.isNaN(this.out_spread.read(150)) ? 0 : this.out_spread.read(150);
+
+        outL[i] = (in1 * dry_level) + (wet_out * wet_level);
+        outR[i] = (in1 * dry_level) + (spread_out * wet_level);
+      }
+      return true;
+    }
+  }
+  registerProcessor('asperitas-node', AsperitasProcessor);
+  `;
+
+  /* ===========================================================================
+     02. APPLICATION STATE & BLANK-SLATE 16-STEP POLYMETRIC SEQUENCER
+     =========================================================================== */
+  function clamp(v, lo, hi) {
+    return v < lo ? lo : (v > hi ? hi : v);
+  }
+
+  function paceToBpm(paceVal) {
+    return Math.round(20 * Math.pow(9, clamp(paceVal, 0, 1)));
+  }
+  function bpmToPace(bpmVal) {
+    return clamp(Math.log(clamp(bpmVal, 20, 180) / 20) / Math.log(9), 0, 1);
+  }
+
+  const state = {
+    params: {
+      sublimate: 0, undertow: 0, rhizome: 0, thicket: 0, tide: 0,
+      alembic: 0.5, transmute: 0, sway: 0, distill: 0,
+      ouroboros: 0, entropy: 0, veil: 0.5
+    },
+    amber1: false,
+    amber2: false,
+    amber1Phase: 0,
+    amber2Phase: 0,
+    inputMon: true,
+
+    isPlaying: false,
+    isDrifting: false,
+    isRecording: false,
+    scopeMode: 0,
+    expandViz: false,
+
+    seqRunning: false,
+    modEditMode: false,
+    holdEditMode: false,
+    selectedLaneIdx: 0,
+    pageIdx: 0,
+    seqTick: 0,
+    seqAccumSec: 0,
+
+    miniParams: {
+      pace: 0.50,
+      sus:  0.50,
+      grow: 0.00,
+      drag: 0.00
+    },
+
+    lanes: [
+      { id: 'amb1', label: 'AMBER I',  roman: 'I.',   color: '#4e8f60', len: 16, steps: new Uint8Array(64), modFlags: new Uint8Array(64), modVals: new Float32Array(64) },
+      { id: 'amb2', label: 'AMBER II', roman: 'II.',  color: '#a67a3c', len: 16, steps: new Uint8Array(64), modFlags: new Uint8Array(64), modVals: new Float32Array(64) },
+      { id: 'undr', label: 'UNDERTOW', roman: 'III.', color: '#487e9e', len: 16, steps: new Uint8Array(64), modFlags: new Uint8Array(64), modVals: new Float32Array(64) },
+      { id: 'fltr', label: 'FILTER',   roman: 'IV.',  color: '#9e4b4b', len: 16, steps: new Uint8Array(64), modFlags: new Uint8Array(64), modVals: new Float32Array(64) }
+    ],
+
+    micDevices: [{ deviceId: '', label: 'DEFAULT INPUT' }],
+    micIdx: 0,
+    selectedMicId: '',
+
+    presets: JSON.parse(localStorage.getItem('asperitas_presets_v2') || '{}'),
+    presetKeys: ['init'],
+    presetIdx: 0,
+    stateA: null,
+    stateB: null,
+    abMix: 0
+  };
+
+  function laneHasSteps(lane) {
+    for (let s = 0; s < lane.len; s++) {
+      if (lane.steps[s] > 0) return true;
+    }
+    return false;
+  }
+
+  function rollLaneDice(lane) {
+    if (state.modEditMode) {
+      if (!laneHasSteps(lane)) {
+        for (let s = 0; s < 64; s++) {
+          lane.steps[s] = Math.random() < 0.34 ? 1 : 0;
+        }
+      }
+      for (let s = 0; s < 64; s++) {
+        if (lane.steps[s] > 0 && Math.random() < 0.55) {
+          lane.modFlags[s] = 1;
+          lane.modVals[s] = 0.25 + Math.random() * 0.75;
+        } else {
+          lane.modFlags[s] = 0;
+          lane.modVals[s] = 0;
+        }
+      }
+      showToast(`${lane.label} // RED MOD STEPS ROLLED`);
+    } else {
+      for (let s = 0; s < 64; s++) {
+        const r = Math.random();
+        if (r < 0.25) {
+          lane.steps[s] = 1;
+        } else if (r < 0.36) {
+          lane.steps[s] = 2;
+        } else {
+          lane.steps[s] = 0;
+          lane.modFlags[s] = 0;
+        }
+      }
+      showToast(`${lane.label} // STEPS ROLLED`);
+    }
+  }
+
+  /* ===========================================================================
+     03. TOAST & AUDIO ENGINE WIRING
+     =========================================================================== */
+  const toastEl = document.getElementById('qm-toast');
+  let toastTimer = null;
+  function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('visible');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('visible'), 1450);
+  }
+
+  let audioCtx = null;
+  let asperitasNode = null;
+  let analyzer = null;
+  let scopeData = null;
+  let recNode = null;
+  let extGain = null;
+  let micStream = null;
+  let fileSource = null;
+
+  let recBuffersL = [];
+  let recBuffersR = [];
+  let recLength = 0;
+
+  function sendParam(id, val) {
+    if (asperitasNode) {
+      asperitasNode.port.postMessage({ id, value: val });
+    }
+  }
+
+  function sendStepEvent(laneIdx, active, stepType, modVal) {
+    if (asperitasNode) {
+      asperitasNode.port.postMessage({
+        type: 'step',
+        lane: laneIdx,
+        active,
+        stepType,
+        modVal
+      });
+    }
+  }
+
+  function syncTempoAndSlewToWorklet() {
+    const bpm = paceToBpm(state.miniParams.pace);
+    const stepDurSec = (60.0 / bpm) * 0.25;
+    sendParam('tempo_mult', bpm / 60.0);
+    sendParam('step_dur_sec', stepDurSec);
+    sendParam('seq_sus', state.miniParams.sus);
+  }
+
+  function resetSequencerWorkletOverrides() {
+    if (asperitasNode) {
+      asperitasNode.port.postMessage({ type: 'reset_seq' });
+    }
+  }
+
+  function setKnobValue(knobEl, val, updateBase = true) {
+    val = clamp(val, 0, 1);
+    const id = knobEl.id;
+    knobEl.dataset.val = val.toFixed(4);
+    if (updateBase) state.params[id] = val;
+
+    const angle = -135 + val * 270;
+    const ind = knobEl.querySelector('.knob-indicator');
+    if (ind) ind.setAttribute('transform', `rotate(${angle.toFixed(1)}, 22, 22)`);
+
+    const readout = document.getElementById(`val-${id}`);
+    if (readout) readout.textContent = val.toFixed(2);
+
+    sendParam(id, val);
+  }
+
+  function syncAllParams() {
+    document.querySelectorAll('.knob-svg').forEach(k => {
+      setKnobValue(k, parseFloat(k.dataset.val), true);
+    });
+    sendParam('amber', state.amber1 ? 100 : 0);
+    sendParam('amber2', state.amber2 ? 100 : 0);
+    sendParam('input_mon', state.inputMon ? 1.0 : 0.0);
+    syncTempoAndSlewToWorklet();
+    if (!state.seqRunning) resetSequencerWorkletOverrides();
+  }
+
+  async function initAudio() {
+    if (audioCtx) {
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      state.isPlaying = true;
+      document.getElementById('btn-activate').classList.add('active');
+      return;
+    }
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+    const blob = new Blob([workletString], { type: 'application/javascript' });
+    await audioCtx.audioWorklet.addModule(URL.createObjectURL(blob));
+    asperitasNode = new AudioWorkletNode(audioCtx, 'asperitas-node', { outputChannelCount: [2] });
+
+    extGain = audioCtx.createGain();
+    extGain.connect(asperitasNode);
+
+    analyzer = audioCtx.createAnalyser();
+    analyzer.fftSize = 512;
+    scopeData = new Uint8Array(analyzer.frequencyBinCount);
+
+    recNode = audioCtx.createScriptProcessor(4096, 2, 2);
+    recNode.onaudioprocess = (e) => {
+      if (!state.isRecording) return;
+      recBuffersL.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+      recBuffersR.push(new Float32Array(e.inputBuffer.getChannelData(1)));
+      recLength += e.inputBuffer.getChannelData(0).length;
+    };
+
+    asperitasNode.connect(analyzer);
+    analyzer.connect(audioCtx.destination);
+    asperitasNode.connect(recNode);
+    recNode.connect(audioCtx.destination);
+
+    state.isPlaying = true;
+    document.getElementById('btn-activate').classList.add('active');
+    syncAllParams();
+    loadAudioDevices();
+    showToast('AUDIO ENGINE ACTIVE');
+  }
+
+  /* ===========================================================================
+     04. HARDWARE INPUT CYCLER & FILE INGEST
+     =========================================================================== */
+  function syncMicCyclerUI() {
+    const dev = state.micDevices[state.micIdx] || { deviceId: '', label: 'DEFAULT INPUT' };
+    state.selectedMicId = dev.deviceId;
+    document.getElementById('mic-device-label').textContent = dev.label;
+  }
+
+  async function loadAudioDevices() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter(d => d.kind === 'audioinput');
+      if (inputs.length > 0) {
+        state.micDevices = inputs.map((d, i) => ({
+          deviceId: d.deviceId,
+          label: (d.label || `AUDIO INPUT ${i + 1}`).toUpperCase()
+        }));
+        const found = state.micDevices.findIndex(d => d.deviceId === state.selectedMicId);
+        state.micIdx = found >= 0 ? found : 0;
+        syncMicCyclerUI();
+      }
+    } catch (_) {}
+  }
+
+  async function engageMic() {
+    await initAudio();
+    if (micStream) {
+      micStream.disconnect();
+      micStream = null;
+    }
+    try {
+      const constraints = {
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false
+        }
+      };
+      if (state.selectedMicId) constraints.audio.deviceId = { exact: state.selectedMicId };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      micStream = audioCtx.createMediaStreamSource(stream);
+      if (fileSource) {
+        fileSource.disconnect();
+        fileSource = null;
+        document.getElementById('btn-file').classList.remove('active');
+      }
+      micStream.connect(extGain);
+      document.getElementById('btn-mic').classList.add('active');
+      await loadAudioDevices();
+      showToast(`MIC // ${state.micDevices[state.micIdx].label}`);
+    } catch (_) {
+      showToast('MIC ACCESS DENIED OR UNAVAILABLE');
+    }
+  }
+
+  async function ingestAudioFile(file) {
+    if (!file) return;
+    await initAudio();
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const audioData = await audioCtx.decodeAudioData(ev.target.result);
+        if (micStream) {
+          micStream.disconnect();
+          micStream = null;
+          document.getElementById('btn-mic').classList.remove('active');
+        }
+        if (fileSource) fileSource.disconnect();
+        fileSource = audioCtx.createBufferSource();
+        fileSource.buffer = audioData;
+        fileSource.loop = true;
+        fileSource.connect(extGain);
+        fileSource.start(0);
+        document.getElementById('btn-file').classList.add('active');
+        showToast(`LOADED // ${file.name.toUpperCase().slice(0, 26)}`);
+      } catch (_) {
+        showToast('UNSUPPORTED AUDIO FILE');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  /* ===========================================================================
+     05. STABLE-DOM POLYMETRIC MATRIX SEQUENCER
+     =========================================================================== */
+  const bpmEl = document.getElementById('bpm-readout');
+  const matrixLanesEl = document.getElementById('matrix-lanes');
+  const editModeReadout = document.getElementById('edit-mode-readout');
+
+  const matrixDom = [];
+
+  function updateBpmAndPaceUI() {
+    const bpm = paceToBpm(state.miniParams.pace);
+    if (!state.seqRunning) {
+      bpmEl.textContent = '| | BPM';
+      bpmEl.classList.remove('active');
+    } else {
+      bpmEl.textContent = `${bpm} BPM`;
+      bpmEl.classList.add('active');
+    }
+
+    const paceEl = document.getElementById('mk-pace');
+    const paceInd = paceEl.querySelector('.mk-ind');
+    const ang = -135 + state.miniParams.pace * 270;
+    paceInd.setAttribute('transform', `rotate(${ang.toFixed(1)}, 13, 13)`);
+    syncTempoAndSlewToWorklet();
+  }
+
+  function syncMatrixHeaderUI() {
+    const selLane = state.lanes[state.selectedLaneIdx];
+    const laneColors = ['active-green', 'active-amber', 'active-cyan', 'active-red'];
+    for (let i = 0; i < 4; i++) {
+      const btn = document.getElementById(`m-lane-${i}`);
+      btn.classList.remove('active-green', 'active-amber', 'active-cyan', 'active-red');
+      if (i === state.selectedLaneIdx) btn.classList.add(laneColors[i]);
+    }
+
+    document.getElementById('btn-seq-mod').classList.toggle('active-red', state.modEditMode);
+    document.getElementById('btn-seq-hold').classList.toggle('active-amber', state.holdEditMode);
+    document.getElementById('btn-seq-len').textContent = `LEN: ${selLane.len}`;
+
+    const maxPages = Math.max(1, Math.ceil(selLane.len / 16));
+    if (state.pageIdx >= maxPages) state.pageIdx = 0;
+    document.getElementById('btn-seq-page').textContent = `PG: ${state.pageIdx + 1}/${maxPages}`;
+
+    if (state.modEditMode) {
+      editModeReadout.textContent = 'EDIT: MODULATION (RED)';
+      editModeReadout.style.color = 'var(--c-red)';
+    } else if (state.holdEditMode) {
+      editModeReadout.textContent = 'EDIT: HELD GATE (=)';
+      editModeReadout.style.color = 'var(--c-amber)';
+    } else {
+      editModeReadout.textContent = 'EDIT: SINGLE STEP (|)';
+      editModeReadout.style.color = 'var(--text-dim)';
+    }
+  }
+
+  function buildMatrixGridDOM() {
+    matrixLanesEl.innerHTML = '';
+    matrixDom.length = 0;
+
+    state.lanes.forEach((lane, lIdx) => {
+      const row = document.createElement('div');
+      row.className = 'm-lane';
+      row.dataset.lane = String(lIdx);
+
+      const tag = document.createElement('div');
+      tag.className = 'm-lane-tag';
+      tag.style.color = lane.color;
+
+      const romanSpan = document.createElement('span');
+      romanSpan.textContent = lane.roman.padEnd(4, ' ');
+      romanSpan.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        state.selectedLaneIdx = lIdx;
+        syncMatrixHeaderUI();
+        updateMatrixGridDOM();
+      });
+
+      const diceSq = document.createElement('span');
+      diceSq.className = 'm-dice-sq';
+      diceSq.textContent = '⚄';
+      diceSq.title = `Roll Steps (or Red Mod Steps when MOD is ON) for ${lane.label}`;
+      diceSq.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        rollLaneDice(lane);
+        updateMatrixGridDOM();
+      });
+
+      tag.appendChild(romanSpan);
+      tag.appendChild(diceSq);
+
+      const stepsRow = document.createElement('div');
+      stepsRow.className = 'm-steps-row';
+      const cells = [];
+
+      for (let col = 0; col < 16; col++) {
+        const cell = document.createElement('div');
+        cell.className = 'm-cell' + (col % 4 === 0 ? ' beat-mark' : '');
+        cell.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          const stepIdx = state.pageIdx * 16 + col;
+          if (stepIdx >= lane.len) return;
+
+          if (state.modEditMode) {
+            if (lane.steps[stepIdx] === 0) {
+              lane.steps[stepIdx] = 1;
+              lane.modFlags[stepIdx] = 1;
+              lane.modVals[stepIdx] = 0.35 + Math.random() * 0.60;
+            } else {
+              lane.modFlags[stepIdx] = lane.modFlags[stepIdx] ? 0 : 1;
+              lane.modVals[stepIdx] = lane.modFlags[stepIdx] ? (0.35 + Math.random() * 0.60) : 0;
+            }
+          } else if (state.holdEditMode) {
+            lane.steps[stepIdx] = (lane.steps[stepIdx] === 2) ? 0 : 2;
+            if (lane.steps[stepIdx] === 0) lane.modFlags[stepIdx] = 0;
+          } else {
+            lane.steps[stepIdx] = (lane.steps[stepIdx] > 0) ? 0 : 1;
+            if (lane.steps[stepIdx] === 0) lane.modFlags[stepIdx] = 0;
+          }
+          updateMatrixGridDOM();
+        });
+        stepsRow.appendChild(cell);
+        cells.push(cell);
+      }
+
+      const lenEl = document.createElement('div');
+      lenEl.className = 'm-len';
+      lenEl.title = 'Drag Horizontally to Set Uneven Step Length (1 - 64)';
+
+      let dragLen = false, startX = 0, startLen = lane.len;
+      lenEl.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        dragLen = true;
+        startX = e.clientX;
+        startLen = lane.len;
+        state.selectedLaneIdx = lIdx;
+        syncMatrixHeaderUI();
+        try { lenEl.setPointerCapture(e.pointerId); } catch (_) {}
+      });
+      lenEl.addEventListener('pointermove', (e) => {
+        if (!dragLen) return;
+        const nextLen = clamp(startLen + Math.round((e.clientX - startX) / 5), 1, 64);
+        if (nextLen !== lane.len) {
+          lane.len = nextLen;
+          syncMatrixHeaderUI();
+          updateMatrixGridDOM();
+        }
+      });
+      const endLen = (e) => {
+        if (!dragLen) return;
+        dragLen = false;
+        try { lenEl.releasePointerCapture(e.pointerId); } catch (_) {}
+      };
+      lenEl.addEventListener('pointerup', endLen);
+      lenEl.addEventListener('pointercancel', endLen);
+
+      row.appendChild(tag);
+      row.appendChild(stepsRow);
+      row.appendChild(lenEl);
+      matrixLanesEl.appendChild(row);
+      matrixDom.push({ cells, lenEl });
+    });
+  }
+
+  function updateMatrixGridDOM() {
+    const pageOffset = state.pageIdx * 16;
+
+    state.lanes.forEach((lane, lIdx) => {
+      const domLane = matrixDom[lIdx];
+      if (!domLane) return;
+
+      domLane.lenEl.textContent = `/${lane.len}`;
+      const activeStep = state.seqRunning ? (state.seqTick % lane.len) : -1;
+
+      for (let col = 0; col < 16; col++) {
+        const cell = domLane.cells[col];
+        const stepIdx = pageOffset + col;
+        const inRange = stepIdx < lane.len;
+        const stepVal = inRange ? lane.steps[stepIdx] : 0;
+        const isMod = inRange && stepVal > 0 && lane.modFlags[stepIdx] === 1;
+        const isHead = inRange && (stepIdx === activeStep);
+
+        cell.className = 'm-cell' +
+          (col % 4 === 0 ? ' beat-mark' : '') +
+          (stepVal > 0 ? ' on' : '') +
+          (isMod ? ' modded' : '') +
+          (isHead ? ' head' : '');
+
+        if (!inRange) {
+          cell.textContent = ' ';
+          cell.style.cursor = 'default';
+        } else {
+          cell.style.cursor = 'pointer';
+          if (stepVal === 2) {
+            cell.textContent = isHead ? '[=]' : '=';
+          } else if (stepVal === 1) {
+            cell.textContent = isHead ? '[|]' : '|';
+          } else {
+            cell.textContent = '·';
+          }
+        }
+      }
+    });
+  }
+
+  function advanceSequencerStep() {
+    state.seqTick++;
+
+    const grow = state.miniParams.grow;
+    if (grow > 0.02) {
+      state.lanes.forEach((lane) => {
+        if (!laneHasSteps(lane)) return;
+        if (Math.random() < grow * 0.22) {
+          const idx = Math.floor(Math.random() * lane.len);
+          const next = lane.steps[idx] ? 0 : 1;
+          lane.steps[idx] = next;
+          if (next > 0 && Math.random() < 0.45) {
+            lane.modFlags[idx] = 1;
+            lane.modVals[idx] = 0.25 + Math.random() * 0.75;
+          } else if (next === 0) {
+            lane.modFlags[idx] = 0;
+          }
+        }
+      });
+    }
+
+    // Lane I: AMBER I Cloud Bed + Articulated Spawned Rhythmic Blooms
+    const l0 = state.lanes[0];
+    if (!laneHasSteps(l0)) {
+      sendStepEvent(0, false, 0, 0);
+    } else {
+      const p0 = state.seqTick % l0.len;
+      const st0 = l0.steps[p0];
+      sendStepEvent(0, true, st0, (st0 > 0 && l0.modFlags[p0]) ? l0.modVals[p0] : 0);
+    }
+
+    // Lane II: AMBER II Half-Speed Sub Cloud Bed + Articulated Spawned Sub-Pulses
+    const l1 = state.lanes[1];
+    if (!laneHasSteps(l1)) {
+      sendStepEvent(1, false, 0, 0);
+    } else {
+      const p1 = state.seqTick % l1.len;
+      const st1 = l1.steps[p1];
+      sendStepEvent(1, true, st1, (st1 > 0 && l1.modFlags[p1]) ? l1.modVals[p1] : 0);
+    }
+
+    // Lane III: UNDERTOW Equal-Power Forward / Reverse Cloud Bloom
+    const l2 = state.lanes[2];
+    if (!laneHasSteps(l2)) {
+      sendParam('seq_undertow_add', 0.0);
+    } else {
+      const p2 = state.seqTick % l2.len;
+      const st2 = l2.steps[p2];
+      if (st2 === 0) {
+        sendParam('seq_undertow_add', 0.0);
+      } else if (l2.modFlags[p2]) {
+        sendParam('seq_undertow_add', clamp(0.45 + l2.modVals[p2] * 0.55, 0, 1));
+      } else {
+        sendParam('seq_undertow_add', st2 === 2 ? 0.85 : 0.55);
+      }
+    }
+
+    // Lane IV: THICKET / TIDE Harmonic Pocket & Filter Carve
+    const l3 = state.lanes[3];
+    if (!laneHasSteps(l3)) {
+      sendParam('seq_filter_mod', 0.0);
+    } else {
+      const p3 = state.seqTick % l3.len;
+      const st3 = l3.steps[p3];
+      if (st3 === 0) {
+        sendParam('seq_filter_mod', 0.0);
+      } else if (l3.modFlags[p3]) {
+        sendParam('seq_filter_mod', l3.modVals[p3]);
+      } else {
+        sendParam('seq_filter_mod', st3 === 2 ? 0.72 : 0.45);
+      }
+    }
+
+    updateMatrixGridDOM();
+  }
+
+  /* ===========================================================================
+     06. REAL-TIME GEOMETRIC AMBER WEATHERING & WIND EROSION STRIP
+     =========================================================================== */
+  const tankCanvas = document.getElementById('tank-canvas');
+  const tankCtx = tankCanvas.getContext('2d', { alpha: false });
+  const bgVizCanvas = document.getElementById('bg-viz-canvas');
+  const bgVizCtx = bgVizCanvas.getContext('2d', { alpha: false });
+
+  const TANK_COLS = 112;
+  const TANK_ROWS = 12;
+
+  const tankType   = new Uint8Array(TANK_COLS * TANK_ROWS);
+  const tankHealth = new Uint8Array(TANK_COLS * TANK_ROWS);
+  const tankOwner  = new Uint8Array(TANK_COLS * TANK_ROWS);
+  const tankColor  = new Uint8Array(TANK_COLS * TANK_ROWS);
+  const tankGlyph  = new Array(TANK_COLS * TANK_ROWS).fill(' ');
+
+  const TANK_PAL = ['#a67a3c', '#4e8f60', '#487e9e', '#c45858', '#e6e3da'];
+  const WIND_STREAKS = [];
+  for (let i = 0; i < 18; i++) {
+    WIND_STREAKS.push({
+      x: Math.random() * TANK_COLS,
+      y: Math.floor(Math.random() * (TANK_ROWS - 1)),
+      speed: 0.4 + Math.random() * 0.9
+    });
+  }
+
+  function buildAmberStructure(ownerId) {
+    for (let i = 0; i < tankType.length; i++) {
+      if (tankOwner[i] === ownerId && tankType[i] === 1) {
+        tankType[i] = 2;
+      }
+    }
+
+    if (ownerId === 1) {
+      const cx = 32;
+      for (let r = 2; r < TANK_ROWS - 1; r++) {
+        const halfW = (r < 4) ? 6 : (r < 7 ? 9 : 12);
+        const isDoor = (r >= 6 && r < TANK_ROWS - 1);
+        for (let c = cx - halfW; c <= cx + halfW; c++) {
+          const dx = Math.abs(c - cx);
+          if (isDoor && dx <= 3) continue;
+          const idx = r * TANK_COLS + c;
+          tankType[idx] = 1;
+          tankHealth[idx] = 3;
+          tankOwner[idx] = 1;
+          tankColor[idx] = (dx === halfW || r === 2) ? 4 : 0;
+
+          if (r === 2 && c === cx - halfW) tankGlyph[idx] = '┌';
+          else if (r === 2 && c === cx + halfW) tankGlyph[idx] = '┐';
+          else if (r === 2) tankGlyph[idx] = '─';
+          else if (dx === halfW) tankGlyph[idx] = '│';
+          else if (isDoor && dx === 4) tankGlyph[idx] = '│';
+          else if (r === 5 && dx <= 4) tankGlyph[idx] = '─';
+          else if (r === 4 && dx === 0) tankGlyph[idx] = '◈';
+          else tankGlyph[idx] = ((c + r) % 2 === 0) ? '▓' : '┼';
+        }
+      }
+    } else {
+      const cx = 79;
+      for (let r = 1; r < TANK_ROWS - 1; r++) {
+        const halfW = (r === 1) ? 3 : (r < 4 ? 7 : (r < 7 ? 11 : 14));
+        const inArch = (r >= 5 && Math.abs(r - 7) <= 3);
+        for (let c = cx - halfW; c <= cx + halfW; c++) {
+          const dx = Math.abs(c - cx);
+          if (inArch && dx >= 3 && dx <= 6 && r >= 6) continue;
+          const idx = r * TANK_COLS + c;
+          tankType[idx] = 1;
+          tankHealth[idx] = 3;
+          tankOwner[idx] = 2;
+          tankColor[idx] = (dx === halfW || r === 1) ? 4 : ((dx <= 2) ? 2 : 0);
+
+          if (r === 1 && dx === 0) tankGlyph[idx] = '◈';
+          else if (r === 1) tankGlyph[idx] = '─';
+          else if (dx === halfW) tankGlyph[idx] = '│';
+          else if (r === 4) tankGlyph[idx] = '═';
+          else if (dx === 0) tankGlyph[idx] = '╬';
+          else tankGlyph[idx] = ((c + r) % 3 === 0) ? '▓' : '∶';
+        }
+      }
+    }
+  }
+
+  function shatterAmberStructure(ownerId) {
+    for (let i = 0; i < tankType.length; i++) {
+      if (tankOwner[i] === ownerId && tankType[i] === 1) {
+        tankType[i] = 2;
+        tankHealth[i] = 1;
+        tankGlyph[i] = '▒';
+      }
+    }
+  }
+
+  let tankPhysicsAccum = 0;
+  function stepWeatheringTank(audioRms, dtSec) {
+    const patina   = state.params.rhizome;
+    const thicket  = state.params.thicket;
+    const tide     = state.params.tide;
+    const sway     = state.params.sway;
+    const entropy  = state.params.entropy;
+    const undertow = state.params.undertow;
+
+    const windDir = (undertow > 0.5) ? -1 : 1;
+    const windForce = clamp(0.18 + tide * 0.65 + sway * 0.55 + entropy * 0.45 + audioRms * 0.75, 0.18, 1.6);
+    const erosionRate = clamp(0.015 + patina * 0.12 + thicket * 0.08 + entropy * 0.18 + audioRms * 0.15, 0.015, 0.45);
+
+    for (let i = 0; i < WIND_STREAKS.length; i++) {
+      const ws = WIND_STREAKS[i];
+      ws.x += windDir * ws.speed * (0.4 + windForce * 1.4) * dtSec * 22;
+      if (ws.x >= TANK_COLS) { ws.x = 0; ws.y = Math.floor(Math.random() * (TANK_ROWS - 1)); }
+      if (ws.x < 0) { ws.x = TANK_COLS - 1; ws.y = Math.floor(Math.random() * (TANK_ROWS - 1)); }
+    }
+
+    tankPhysicsAccum += dtSec;
+    if (tankPhysicsAccum < 0.055) return;
+    tankPhysicsAccum = 0;
+
+    for (let r = 0; r < TANK_ROWS - 1; r++) {
+      for (let c = 1; c < TANK_COLS - 1; c++) {
+        const idx = r * TANK_COLS + c;
+        if (tankType[idx] !== 1) continue;
+
+        const windwardIdx = r * TANK_COLS + (c - windDir);
+        const topIdx = r > 0 ? (r - 1) * TANK_COLS + c : -1;
+        const botIdx = (r + 1) * TANK_COLS + c;
+        const exposed = (tankType[windwardIdx] === 0) ||
+                        (topIdx >= 0 && tankType[topIdx] === 0) ||
+                        (tankType[botIdx] === 0);
+
+        if (exposed && Math.random() < erosionRate) {
+          tankHealth[idx]--;
+          if (tankHealth[idx] === 2) {
+            tankGlyph[idx] = '▒';
+            if (patina > 0.25 && Math.random() < 0.45) tankColor[idx] = 1;
+          } else if (tankHealth[idx] === 1) {
+            tankGlyph[idx] = '∶';
+            if (entropy > 0.25 && Math.random() < 0.40) tankColor[idx] = 3;
+          } else {
+            tankType[idx] = 2;
+            tankGlyph[idx] = '·';
+          }
+        }
+      }
+    }
+
+    for (let r = TANK_ROWS - 1; r >= 0; r--) {
+      const scanLeftToRight = (windDir < 0);
+      for (let step = 0; step < TANK_COLS; step++) {
+        const c = scanLeftToRight ? step : (TANK_COLS - 1 - step);
+        const idx = r * TANK_COLS + c;
+        if (tankType[idx] !== 2) continue;
+
+        const onFloor = (r === TANK_ROWS - 1);
+        if (!onFloor) {
+          const belowIdx = (r + 1) * TANK_COLS + c;
+          const driftC = c + (Math.random() < windForce * 0.55 ? windDir : 0);
+          if (driftC < 0 || driftC >= TANK_COLS) {
+            tankType[idx] = 0;
+            continue;
+          }
+          const targetIdx = (r + 1) * TANK_COLS + driftC;
+          if (tankType[targetIdx] === 0) {
+            tankType[targetIdx] = 2;
+            tankColor[targetIdx] = tankColor[idx];
+            tankGlyph[targetIdx] = Math.random() < 0.3 ? '∶' : '·';
+            tankType[idx] = 0;
+          } else if (tankType[belowIdx] === 0) {
+            tankType[belowIdx] = 2;
+            tankColor[belowIdx] = tankColor[idx];
+            tankGlyph[belowIdx] = '·';
+            tankType[idx] = 0;
+          } else {
+            const sideC = c + windDir;
+            if (sideC >= 0 && sideC < TANK_COLS && tankType[r * TANK_COLS + sideC] === 0) {
+              tankType[r * TANK_COLS + sideC] = 2;
+              tankColor[r * TANK_COLS + sideC] = tankColor[idx];
+              tankGlyph[r * TANK_COLS + sideC] = '·';
+              tankType[idx] = 0;
+            }
+          }
+        } else {
+          if (Math.random() < windForce * 0.48) {
+            const nc = c + windDir;
+            const lift = (Math.random() < windForce * 0.14 && r > 1) ? -1 : 0;
+            if (nc < 0 || nc >= TANK_COLS) {
+              tankType[idx] = 0;
+            } else {
+              const targetIdx = (r + lift) * TANK_COLS + nc;
+              if (tankType[targetIdx] === 0) {
+                tankType[targetIdx] = 2;
+                tankColor[targetIdx] = tankColor[idx];
+                tankGlyph[targetIdx] = lift < 0 ? '·' : '≈';
+                tankType[idx] = 0;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function renderTankToContext(targetCtx, widthPx, heightPx, isBackdrop) {
+    targetCtx.fillStyle = isBackdrop ? '#050605' : '#030403';
+    targetCtx.fillRect(0, 0, widthPx, heightPx);
+
+    const cellW = widthPx / TANK_COLS;
+    const cellH = heightPx / TANK_ROWS;
+    const fontPx = Math.max(8, Math.floor(Math.min(cellW, cellH) * 0.96));
+
+    targetCtx.font = `bold ${fontPx}px 'Courier New', Menlo, monospace`;
+    targetCtx.textAlign = 'center';
+    targetCtx.textBaseline = 'middle';
+
+    if (isBackdrop) targetCtx.globalAlpha = 0.42;
+
+    targetCtx.fillStyle = '#18221d';
+    const floorY = (TANK_ROWS - 1) * cellH + cellH * 0.52;
+    for (let c = 0; c < TANK_COLS; c += 2) {
+      if (tankType[(TANK_ROWS - 1) * TANK_COLS + c] === 0) {
+        targetCtx.fillText('·', c * cellW + cellW * 0.5, floorY);
+      }
+    }
+
+    targetCtx.fillStyle = '#2c3d34';
+    const streakChar = (state.params.tide > 0.35 || state.params.sway > 0.35) ? '─' : '·';
+    for (let i = 0; i < WIND_STREAKS.length; i++) {
+      const ws = WIND_STREAKS[i];
+      const sc = Math.floor(ws.x);
+      if (sc >= 0 && sc < TANK_COLS && tankType[ws.y * TANK_COLS + sc] === 0) {
+        targetCtx.fillText(streakChar, sc * cellW + cellW * 0.5, ws.y * cellH + cellH * 0.52);
+      }
+    }
+
+    if (state.seqRunning) {
+      const selLane = state.lanes[state.selectedLaneIdx];
+      const stepInPage = (state.seqTick % selLane.len) % 16;
+      const headCol = Math.floor(((stepInPage + 0.5) / 16) * TANK_COLS);
+      targetCtx.fillStyle = '#c45858';
+      targetCtx.fillText('↓', headCol * cellW + cellW * 0.5, cellH * 0.52);
+    }
+
+    for (let r = 0; r < TANK_ROWS; r++) {
+      const py = r * cellH + cellH * 0.52;
+      for (let c = 0; c < TANK_COLS; c++) {
+        const idx = r * TANK_COLS + c;
+        if (tankType[idx] === 0) continue;
+        targetCtx.fillStyle = TANK_PAL[tankColor[idx] % 5];
+        targetCtx.fillText(tankGlyph[idx], c * cellW + cellW * 0.5, py);
+      }
+    }
+
+    if (isBackdrop) targetCtx.globalAlpha = 1.0;
+  }
+
+  /* ===========================================================================
+     07. PIXEL-SNAPPED OLED SCOPE & MAIN 60FPS LOOP
+     =========================================================================== */
+  const scopeCanvas = document.getElementById('scope');
+  const scopeCtx = scopeCanvas.getContext('2d');
+  let seismoHistory = new Array(scopeCanvas.width).fill(0);
+
+  scopeCanvas.addEventListener('click', () => {
+    state.scopeMode = 1 - state.scopeMode;
+    showToast(state.scopeMode === 0 ? 'OLED // WAVEFORM' : 'OLED // SEISMOGRAPH');
+  });
+
+  function renderScopeAndAmberBars(dtSec) {
+    const w = scopeCanvas.width;
+    const h = scopeCanvas.height;
+    scopeCtx.fillStyle = '#030403';
+    scopeCtx.fillRect(0, 0, w, h);
+
+    const midY = Math.floor(h * 0.5);
+    scopeCtx.fillStyle = '#18221d';
+    for (let x = 2; x < w - 2; x += 4) scopeCtx.fillRect(x, midY, 1, 1);
+
+    let rms = 0;
+    if (analyzer && state.isPlaying && scopeData) {
+      analyzer.getByteTimeDomainData(scopeData);
+      if (state.scopeMode === 0) {
+        scopeCtx.fillStyle = '#4e8f60';
+        for (let x = 1; x < w - 1; x += 2) {
+          const sIdx = Math.min(scopeData.length - 1, Math.floor((x / w) * scopeData.length));
+          const v = scopeData[sIdx] / 128.0;
+          const y = clamp(Math.floor((v * h) * 0.5), 1, h - 3);
+          scopeCtx.fillRect(x, y, 2, 2);
+          rms += Math.abs(v - 1.0);
+        }
+        rms /= (w * 0.5);
+      } else {
+        let peak = 0;
+        for (let i = 0; i < scopeData.length; i++) {
+          const v = Math.abs(scopeData[i] - 128) / 128.0;
+          if (v > peak) peak = v;
+        }
+        rms = peak;
+        seismoHistory.shift();
+        seismoHistory.push(peak);
+        scopeCtx.fillStyle = '#c45858';
+        for (let x = 1; x < w - 1; x += 2) {
+          const bh = Math.floor(seismoHistory[x] * (h - 2));
+          for (let py = h - 2; py >= h - 2 - bh; py -= 2) scopeCtx.fillRect(x, py, 1, 1);
+        }
+      }
+    }
+
+    const bar1El = document.getElementById('amb1-bar');
+    const bar2El = document.getElementById('amb2-bar');
+    if (state.amber1) {
+      state.amber1Phase = (state.amber1Phase + dtSec / 2.0) % 1.0;
+      const n = Math.floor(state.amber1Phase * 6) + 1;
+      bar1El.textContent = `[${'▓'.repeat(n)}${'░'.repeat(6 - n)}]`;
+    } else {
+      bar1El.textContent = '[░░░░░░]';
+    }
+    if (state.amber2) {
+      state.amber2Phase = (state.amber2Phase + dtSec / 8.0) % 1.0;
+      const n = Math.floor(state.amber2Phase * 6) + 1;
+      bar2El.textContent = `[${'▓'.repeat(n)}${'░'.repeat(6 - n)}]`;
+    } else {
+      bar2El.textContent = '[░░░░░░]';
+    }
+
+    return rms;
+  }
+
+  let lastMs = performance.now();
+  function animate(nowMs) {
+    const dtSec = clamp((nowMs - lastMs) * 0.001, 0.001, 0.05);
+    lastMs = nowMs;
+
+    if (state.seqRunning) {
+      const bpm = paceToBpm(state.miniParams.pace);
+      const swingBias = (state.seqTick % 2 === 1) ? (1.0 + state.miniParams.drag * 0.35) : (1.0 - state.miniParams.drag * 0.25);
+      const stepDur = ((60.0 / bpm) * 0.25) * swingBias;
+      state.seqAccumSec += dtSec;
+      while (state.seqAccumSec >= stepDur) {
+        state.seqAccumSec -= stepDur;
+        advanceSequencerStep();
+      }
+    }
+
+    const rms = renderScopeAndAmberBars(dtSec);
+    stepWeatheringTank(rms, dtSec);
+
+    if (state.expandViz) {
+      renderTankToContext(bgVizCtx, bgVizCanvas.width, bgVizCanvas.height, true);
+    } else {
+      renderTankToContext(tankCtx, tankCanvas.width, tankCanvas.height, false);
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  /* ===========================================================================
+     08. EVENT LISTENERS, WAV EXPORT & INITIALIZATION
+     =========================================================================== */
+  function resizeCanvases() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    bgVizCanvas.width = Math.floor(window.innerWidth * dpr);
+    bgVizCanvas.height = Math.floor(window.innerHeight * dpr);
+
+    const rect = tankCanvas.getBoundingClientRect();
+    if (rect.width > 0) {
+      tankCanvas.width = Math.floor(rect.width * dpr);
+      tankCanvas.height = Math.floor(92 * dpr);
+    }
+  }
+
+  function exportWAV() {
+    const interleaved = new Float32Array(recLength * 2);
+    let offset = 0;
+    for (let i = 0; i < recBuffersL.length; i++) {
+      const bL = recBuffersL[i];
+      const bR = recBuffersR[i];
+      for (let j = 0; j < bL.length; j++) {
+        interleaved[offset++] = bL[j];
+        interleaved[offset++] = bR[j];
+      }
+    }
+    const buffer = new ArrayBuffer(44 + interleaved.length * 2);
+    const view = new DataView(buffer);
+    const writeStr = (off, str) => { for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i)); };
+
+    writeStr(0, 'RIFF');
+    view.setUint32(4, 36 + interleaved.length * 2, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 2, true);
+    view.setUint32(24, audioCtx.sampleRate, true);
+    view.setUint32(28, audioCtx.sampleRate * 4, true);
+    view.setUint16(32, 4, true);
+    view.setUint16(34, 16, true);
+    writeStr(36, 'data');
+    view.setUint32(40, interleaved.length * 2, true);
+
+    let o = 44;
+    for (let i = 0; i < interleaved.length; i++, o += 2) {
+      const s = clamp(interleaved[i], -1, 1);
+      view.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+
+    const blob = new Blob([view], { type: 'audio/wav' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ASPERITAS_${state.presetKeys[state.presetIdx].replace(/\s+/g, '_')}.wav`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    showToast('STEREO WAV EXPORTED');
+  }
+
+  function refreshPresetCycler() {
+    state.presetKeys = ['init', ...Object.keys(state.presets)];
+    state.presetIdx = clamp(state.presetIdx, 0, state.presetKeys.length - 1);
+    const key = state.presetKeys[state.presetIdx];
+    document.getElementById('preset-label').textContent = key === 'init' ? 'INITIALIZED' : key;
+  }
+
+  function applyPresetByKey(key) {
+    if (key === 'init') {
+      document.querySelectorAll('.knob-svg').forEach(k => setKnobValue(k, parseFloat(k.dataset.default)));
+      return;
+    }
+    const pObj = state.presets[key];
+    if (!pObj) return;
+    Object.keys(pObj).forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.classList.contains('knob-svg')) setKnobValue(el, pObj[id]);
+    });
+  }
+
+  function renderAbBar(mix) {
+    const cells = 8;
+    const pos = clamp(Math.round(mix * (cells - 1)), 0, cells - 1);
+    let str = '';
+    for (let i = 0; i < cells; i++) str += (i === pos) ? '■' : '░';
+    document.getElementById('ab-scrub').textContent = `[${str}]`;
+  }
+
+  function toggleAmber1() {
+    state.amber1 = !state.amber1;
+    document.getElementById('btn-amber1').classList.toggle('active', state.amber1);
+    sendParam('amber', state.amber1 ? 100 : 0);
+    if (state.amber1) buildAmberStructure(1);
+    else shatterAmberStructure(1);
+    showToast(`AMBER I // UPPER CLOUD: ${state.amber1 ? 'FROZEN' : 'SHATTERED'}`);
+  }
+
+  function toggleAmber2() {
+    state.amber2 = !state.amber2;
+    document.getElementById('btn-amber2').classList.toggle('active', state.amber2);
+    sendParam('amber2', state.amber2 ? 100 : 0);
+    if (state.amber2) buildAmberStructure(2);
+    else shatterAmberStructure(2);
+    showToast(`AMBER II // SUB CLOUD (0.5X): ${state.amber2 ? 'FROZEN' : 'SHATTERED'}`);
+  }
+
+  function toggleInputMonitor() {
+    state.inputMon = !state.inputMon;
+    const btn = document.getElementById('btn-mon');
+    btn.classList.toggle('active-amber', state.inputMon);
+    sendParam('input_mon', state.inputMon ? 1.0 : 0.0);
+    showToast(state.inputMon ? 'INPUT MONITOR // LIVE FEED ACTIVE' : 'INPUT MONITOR // LIVE FEED BYPASSED');
+  }
+
+  function toggleSequencer() {
+    state.seqRunning = !state.seqRunning;
+    const btn = document.getElementById('btn-seq-toggle');
+    btn.textContent = state.seqRunning ? 'SEQ: ON' : 'SEQ: OFF';
+    btn.classList.toggle('active-green', state.seqRunning);
+    updateBpmAndPaceUI();
+    if (!state.seqRunning) {
+      resetSequencerWorkletOverrides();
+      updateMatrixGridDOM();
+    }
+    showToast(`SEQUENCER: ${state.seqRunning ? `RUNNING (${paceToBpm(state.miniParams.pace)} BPM)` : 'STOPPED'}`);
+  }
+
+  function wireUI() {
+    // Primary rotary knobs
+    document.querySelectorAll('.knob-svg').forEach(knob => {
+      const wrap = knob.closest('.knob-container');
+      setKnobValue(knob, parseFloat(knob.dataset.val));
+
+      let dragging = false, startY = 0, startVal = 0;
+      knob.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        dragging = true;
+        startY = e.clientY;
+        startVal = parseFloat(knob.dataset.val);
+        if (wrap) wrap.classList.add('dragging');
+        try { knob.setPointerCapture(e.pointerId); } catch (_) {}
+      });
+      knob.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        const sens = e.shiftKey ? 0.0014 : 0.0052;
+        setKnobValue(knob, startVal + (startY - e.clientY) * sens);
+      });
+      const endDrag = (e) => {
+        if (!dragging) return;
+        dragging = false;
+        if (wrap) wrap.classList.remove('dragging');
+        try { knob.releasePointerCapture(e.pointerId); } catch (_) {}
+      };
+      knob.addEventListener('pointerup', endDrag);
+      knob.addEventListener('pointercancel', endDrag);
+      knob.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        setKnobValue(knob, parseFloat(knob.dataset.default));
+        showToast(`${knob.id.toUpperCase()} RESET`);
+      });
+    });
+
+    // Mini Matrix Knobs (PACE, SUS, GROW, DRAG)
+    const miniIds = ['pace', 'sus', 'grow', 'drag'];
+    miniIds.forEach(mId => {
+      const el = document.getElementById(`mk-${mId}`);
+      const ind = el.querySelector('.mk-ind');
+      const updateMini = (v) => {
+        v = clamp(v, 0, 1);
+        state.miniParams[mId] = v;
+        el.dataset.val = v.toFixed(3);
+        const ang = -135 + v * 270;
+        ind.setAttribute('transform', `rotate(${ang.toFixed(1)}, 13, 13)`);
+        if (mId === 'pace') updateBpmAndPaceUI();
+        if (mId === 'sus') syncTempoAndSlewToWorklet();
+      };
+      updateMini(parseFloat(el.dataset.val));
+
+      let dragM = false, sY = 0, sV = 0;
+      el.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        dragM = true; sY = e.clientY; sV = state.miniParams[mId];
+        try { el.setPointerCapture(e.pointerId); } catch (_) {}
+      });
+      el.addEventListener('pointermove', (e) => {
+        if (!dragM) return;
+        updateMini(sV + (sY - e.clientY) * 0.006);
+      });
+      const endM = (e) => {
+        if (!dragM) return;
+        dragM = false;
+        const valMsg = mId === 'pace' ? `${paceToBpm(state.miniParams.pace)} BPM` : state.miniParams[mId].toFixed(2);
+        showToast(`${mId.toUpperCase()}: ${valMsg}`);
+        try { el.releasePointerCapture(e.pointerId); } catch (_) {}
+      };
+      el.addEventListener('pointerup', endM);
+      el.addEventListener('pointercancel', endM);
+    });
+
+    // Matrix Header Controls
+    for (let i = 0; i < 4; i++) {
+      document.getElementById(`m-lane-${i}`).addEventListener('click', () => {
+        state.selectedLaneIdx = i;
+        syncMatrixHeaderUI();
+        updateMatrixGridDOM();
+      });
+    }
+
+    document.getElementById('btn-seq-toggle').addEventListener('click', toggleSequencer);
+
+    document.getElementById('btn-seq-mod').addEventListener('click', () => {
+      state.modEditMode = !state.modEditMode;
+      if (state.modEditMode) state.holdEditMode = false;
+      syncMatrixHeaderUI();
+      showToast(state.modEditMode ? 'EDIT MODE // RED MODULATION' : 'EDIT MODE // SINGLE STEP');
+    });
+
+    document.getElementById('btn-seq-hold').addEventListener('click', () => {
+      state.holdEditMode = !state.holdEditMode;
+      if (state.holdEditMode) state.modEditMode = false;
+      syncMatrixHeaderUI();
+      showToast(state.holdEditMode ? 'EDIT MODE // HELD GATES (=)' : 'EDIT MODE // SINGLE STEP');
+    });
+
+    const lenBtn = document.getElementById('btn-seq-len');
+    let dragHdrLen = false, hdrStartX = 0, hdrStartLen = 16;
+    lenBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      dragHdrLen = true;
+      hdrStartX = e.clientX;
+      hdrStartLen = state.lanes[state.selectedLaneIdx].len;
+      try { lenBtn.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    lenBtn.addEventListener('pointermove', (e) => {
+      if (!dragHdrLen) return;
+      const lane = state.lanes[state.selectedLaneIdx];
+      const next = clamp(hdrStartLen + Math.round((e.clientX - hdrStartX) / 5), 1, 64);
+      if (next !== lane.len) {
+        lane.len = next;
+        syncMatrixHeaderUI();
+        updateMatrixGridDOM();
+      }
+    });
+    const endHdrLen = (e) => {
+      if (!dragHdrLen) return;
+      dragHdrLen = false;
+      try { lenBtn.releasePointerCapture(e.pointerId); } catch (_) {}
+    };
+    lenBtn.addEventListener('pointerup', endHdrLen);
+    lenBtn.addEventListener('pointercancel', endHdrLen);
+
+    document.getElementById('btn-seq-page').addEventListener('click', () => {
+      const lane = state.lanes[state.selectedLaneIdx];
+      const maxPages = Math.max(1, Math.ceil(lane.len / 16));
+      state.pageIdx = (state.pageIdx + 1) % maxPages;
+      syncMatrixHeaderUI();
+      updateMatrixGridDOM();
+    });
+
+    document.getElementById('btn-seq-clr').addEventListener('click', () => {
+      const lane = state.lanes[state.selectedLaneIdx];
+      lane.steps.fill(0);
+      lane.modFlags.fill(0);
+      lane.modVals.fill(0);
+      if (state.selectedLaneIdx === 0) sendStepEvent(0, false, 0, 0);
+      else if (state.selectedLaneIdx === 1) sendStepEvent(1, false, 0, 0);
+      else if (state.selectedLaneIdx === 2) sendParam('seq_undertow_add', 0.0);
+      else if (state.selectedLaneIdx === 3) sendParam('seq_filter_mod', 0.0);
+      updateMatrixGridDOM();
+      showToast(`${lane.label} CLEARED (PURE CLOUD)`);
+    });
+
+    // BPM vertical drag directly drives logarithmic PACE
+    let draggingBpm = false, bpmStartY = 0, bpmStartVal = 60;
+    bpmEl.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      draggingBpm = true;
+      bpmStartY = e.clientY;
+      bpmStartVal = paceToBpm(state.miniParams.pace);
+      try { bpmEl.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    bpmEl.addEventListener('pointermove', (e) => {
+      if (!draggingBpm) return;
+      const nextBpm = clamp(Math.round(bpmStartVal + (bpmStartY - e.clientY) * 0.4), 20, 180);
+      state.miniParams.pace = bpmToPace(nextBpm);
+      updateBpmAndPaceUI();
+    });
+    const endBpmDrag = (e) => {
+      if (!draggingBpm) return;
+      draggingBpm = false;
+      try { bpmEl.releasePointerCapture(e.pointerId); } catch (_) {}
+    };
+    bpmEl.addEventListener('pointerup', endBpmDrag);
+    bpmEl.addEventListener('pointercancel', endBpmDrag);
+
+    // Core buttons
+    document.getElementById('btn-activate').addEventListener('click', async (e) => {
+      if (!audioCtx || audioCtx.state === 'suspended') {
+        await initAudio();
+      } else {
+        await audioCtx.suspend();
+        state.isPlaying = false;
+        e.target.classList.remove('active');
+        showToast('AUDIO ENGINE SUSPENDED');
+      }
+    });
+
+    document.getElementById('btn-mic').addEventListener('click', engageMic);
+    document.getElementById('btn-file').addEventListener('click', () => document.getElementById('file-upload').click());
+    document.getElementById('file-upload').addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) ingestAudioFile(e.target.files[0]);
+      e.target.value = '';
+    });
+
+    document.getElementById('btn-mon').addEventListener('click', toggleInputMonitor);
+
+    document.getElementById('btn-mic-prev').addEventListener('click', () => {
+      state.micIdx = (state.micIdx - 1 + state.micDevices.length) % state.micDevices.length;
+      syncMicCyclerUI();
+      if (micStream) engageMic();
+    });
+    document.getElementById('btn-mic-next').addEventListener('click', () => {
+      state.micIdx = (state.micIdx + 1) % state.micDevices.length;
+      syncMicCyclerUI();
+      if (micStream) engageMic();
+    });
+    document.getElementById('mic-device-label').addEventListener('click', () => {
+      state.micIdx = (state.micIdx + 1) % state.micDevices.length;
+      syncMicCyclerUI();
+      if (micStream) engageMic();
+    });
+
+    document.getElementById('btn-rec').addEventListener('click', (e) => {
+      if (!audioCtx) return;
+      if (!state.isRecording) {
+        state.isRecording = true;
+        recBuffersL = []; recBuffersR = []; recLength = 0;
+        e.target.classList.add('active-red');
+        showToast('RECORDING STEREO WAV...');
+      } else {
+        state.isRecording = false;
+        e.target.classList.remove('active-red');
+        exportWAV();
+      }
+    });
+
+    document.getElementById('btn-amber1').addEventListener('click', toggleAmber1);
+    document.getElementById('btn-amber2').addEventListener('click', toggleAmber2);
+
+    document.getElementById('btn-scatter').addEventListener('click', () => {
+      document.querySelectorAll('.knob-svg').forEach(k => setKnobValue(k, Math.random()));
+      showToast('SCATTER // ALL DIALS ROLLED');
+    });
+
+    document.getElementById('btn-drift').addEventListener('click', (e) => {
+      state.isDrifting = !state.isDrifting;
+      e.target.classList.toggle('active', state.isDrifting);
+      showToast(`DRIFT: ${state.isDrifting ? 'ON' : 'OFF'}`);
+    });
+
+    setInterval(() => {
+      if (!state.isDrifting || !state.isPlaying) return;
+      document.querySelectorAll('.knob-svg').forEach(k => {
+        const v = parseFloat(k.dataset.val) + (Math.random() - 0.5) * 0.004;
+        setKnobValue(k, v);
+      });
+    }, 60);
+
+    // A/B Morph Crossfader
+    document.getElementById('btn-a').addEventListener('click', (e) => {
+      state.stateA = {};
+      document.querySelectorAll('.knob-svg').forEach(k => { state.stateA[k.id] = parseFloat(k.dataset.val); });
+      state.abMix = 0;
+      renderAbBar(0);
+      e.target.classList.add('active');
+      document.getElementById('btn-b').classList.remove('active');
+      showToast('STATE A STORED');
+    });
+
+    document.getElementById('btn-b').addEventListener('click', (e) => {
+      state.stateB = {};
+      document.querySelectorAll('.knob-svg').forEach(k => { state.stateB[k.id] = parseFloat(k.dataset.val); });
+      state.abMix = 1;
+      renderAbBar(1);
+      e.target.classList.add('active');
+      document.getElementById('btn-a').classList.remove('active');
+      showToast('STATE B STORED');
+    });
+
+    const abScrub = document.getElementById('ab-scrub');
+    let dragAb = false;
+    const handleAbPointer = (clientX) => {
+      if (!state.stateA || !state.stateB) return;
+      const rect = abScrub.getBoundingClientRect();
+      const mix = clamp((clientX - rect.left) / Math.max(1, rect.width), 0, 1);
+      state.abMix = mix;
+      renderAbBar(mix);
+      document.querySelectorAll('.knob-svg').forEach(k => {
+        setKnobValue(k, state.stateA[k.id] * (1 - mix) + state.stateB[k.id] * mix);
+      });
+    };
+    abScrub.addEventListener('pointerdown', (e) => { e.preventDefault(); dragAb = true; handleAbPointer(e.clientX); });
+    window.addEventListener('pointermove', (e) => { if (dragAb) handleAbPointer(e.clientX); });
+    window.addEventListener('pointerup', () => { dragAb = false; });
+
+    // Preset Cycler & Dump
+    const w1 = ['FOG', 'RUST', 'TIDE', 'ASH', 'SALT', 'STORM', 'MOSS', 'DUSK'];
+    const w2 = ['DRIFT', 'FROST', 'WELL', 'SILT', 'HAZE', 'VEIL', 'DECAY', 'MIST'];
+    document.getElementById('btn-dump').addEventListener('click', () => {
+      const name = `${w1[Math.floor(Math.random() * w1.length)]} ${w2[Math.floor(Math.random() * w2.length)]}`;
+      const snap = {};
+      document.querySelectorAll('.knob-svg').forEach(k => { snap[k.id] = parseFloat(k.dataset.val); });
+      state.presets[name] = snap;
+      localStorage.setItem('asperitas_presets_v2', JSON.stringify(state.presets));
+      refreshPresetCycler();
+      state.presetIdx = state.presetKeys.indexOf(name);
+      document.getElementById('preset-label').textContent = name;
+      showToast(`STORED // ${name}`);
+    });
+
+    const stepPreset = (delta) => {
+      state.presetIdx = (state.presetIdx + delta + state.presetKeys.length) % state.presetKeys.length;
+      const key = state.presetKeys[state.presetIdx];
+      document.getElementById('preset-label').textContent = key === 'init' ? 'INITIALIZED' : key;
+      applyPresetByKey(key);
+      showToast(`PRESET // ${key === 'init' ? 'INITIALIZED' : key}`);
+    };
+    document.getElementById('btn-preset-prev').addEventListener('click', () => stepPreset(-1));
+    document.getElementById('btn-preset-next').addEventListener('click', () => stepPreset(1));
+    document.getElementById('preset-label').addEventListener('click', () => stepPreset(1));
+
+    // Full-frame visualiser backdrop toggle [V]
+    document.getElementById('btn-expand-viz').addEventListener('click', (e) => {
+      state.expandViz = !state.expandViz;
+      bgVizCanvas.classList.toggle('active', state.expandViz);
+      tankCanvas.classList.toggle('hidden-strip', state.expandViz);
+      e.target.classList.toggle('active-green', state.expandViz);
+      resizeCanvases();
+      showToast(state.expandViz ? 'TANK // FULL-FRAME BACKDROP' : 'TANK // BOTTOM MATRIX STRIP');
+    });
+
+    // Drag-and-drop audio anywhere
+    let dragCount = 0;
+    window.addEventListener('dragenter', (e) => { e.preventDefault(); dragCount++; document.getElementById('drop-overlay').classList.add('active'); });
+    window.addEventListener('dragover', (e) => e.preventDefault());
+    window.addEventListener('dragleave', (e) => { e.preventDefault(); if (--dragCount <= 0) { dragCount = 0; document.getElementById('drop-overlay').classList.remove('active'); } });
+    window.addEventListener('drop', (e) => {
+      e.preventDefault(); dragCount = 0; document.getElementById('drop-overlay').classList.remove('active');
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) ingestAudioFile(e.dataTransfer.files[0]);
+    });
+
+    // Keyboard shortcuts
+    window.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      if (k === '1') toggleAmber1();
+      else if (k === '2') toggleAmber2();
+      else if (k === 'v') document.getElementById('btn-expand-viz').click();
+      else if (k === 's') document.getElementById('btn-scatter').click();
+      else if (e.code === 'Space') { e.preventDefault(); toggleSequencer(); }
+    });
+
+    window.addEventListener('resize', resizeCanvases);
+  }
+
+  window.onload = () => {
+    buildMatrixGridDOM();
+    refreshPresetCycler();
+    syncMatrixHeaderUI();
+    updateMatrixGridDOM();
+    updateBpmAndPaceUI();
+    wireUI();
+    resizeCanvases();
+    loadAudioDevices();
+    requestAnimationFrame(animate);
+  };
+})();
+</script>
+</body>
+</html>
